@@ -71,14 +71,19 @@ class GlobalGeometry(ABC):
         If None is passed, attribute will not be changed.
         """
         if x is not None:
+            assert x.shape == (self.num_geometries,)
             self._x_global = x
         if y is not None:
+            assert y.shape == (self.num_geometries,)
             self._y_global = y
         if z is not None:
+            assert z.shape == (self.num_geometries,)
             self._z_global = z
         if elev is not None:
+            assert elev.shape == (self.num_geometries,)
             self._pointn_elev_global = elev
         if azim is not None:
+            assert azim.shape == (self.num_geometries,)
             self._pointn_azim_global = azim
 
     def get_global_distance_to(self, other: "GlobalGeometry") -> np.array:
@@ -696,14 +701,19 @@ class SimulatorGeometry(GlobalGeometry):
         If None is passed, attribute will not be updated.
         """
         if x is not None:
+            assert x.shape == (self.num_geometries,)
             self._x_local = x
         if y is not None:
+            assert y.shape == (self.num_geometries,)
             self._y_local = y
         if z is not None:
+            assert z.shape == (self.num_geometries,)
             self._z_local = z
         if elev is not None:
+            assert elev.shape == (self.num_geometries,)
             self._pointn_elev_local = elev
         if azim is not None:
+            assert azim.shape == (self.num_geometries,)
             self._pointn_azim_local = azim
 
         self._compute_global_from_local()
@@ -924,6 +934,7 @@ def plot_geom(
     geom: SimulatorGeometry,
     scatter_params: dict = {},
     plot_pointing=False,
+    boresight_length=100 * 1e3
 ):
     """Adds a given SimulatorGeometry to a plotly figure
     considering global coordinates
@@ -947,7 +958,6 @@ def plot_geom(
     if plot_pointing:
         from sharc.support.sharc_geom import polar_to_cartesian
         # Plot beam boresight vectors
-        boresight_length = 100 * 1e3  # Length of the boresight vectors for visualization
         boresight_x, boresight_y, boresight_z = polar_to_cartesian(
             boresight_length,
             geom.pointn_azim_global,
