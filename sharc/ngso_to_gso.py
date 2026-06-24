@@ -1,125 +1,38 @@
 import itur
-
-from tqdm import tqdm
+import shutil
+import argparse
+from sharc.satellite.scripts.plot_globe import plot_globe_with_borders
+from sharc.p618 import rain_attenuation_inv_ccdf
+from sharc.parameters.parameters_ngso_to_gso import (
+    ParametersNGSO2GSO, ParametersGSO, STR_SEPARATOR
+)
 from datetime import datetime
 from pathlib import Path
 from sharc.parameters.constants import BOLTZMANN_CONSTANT
-import csv
-import plotly.graph_objects as go
-from sharc.satellite.ngso.orbit_model import OrbitModel
-from sharc.parameters.parameters_orbit import ParametersOrbit
-from sharc.satellite.scripts.plot_globe import plot_globe_with_borders
-from sharc.p618 import rain_attenuation_inv_ccdf
+from sharc.antenna.antenna_1428 import es_ant_gain_1428
 from sharc.support.sharc_geom import CoordinateSystem
 from sharc.support.geometry import (
     SimulatorGeometry, ENUReferenceFrame, DWNReferenceFrame, plot_geom
 )
-
+from sharc.satellite.ngso.orbit_model import OrbitModel
+from dataclasses import dataclass
 import numpy as np
+from tqdm import tqdm
+import csv
 
-DEBUG = True
-
-SEED = 1251
-Nco = 2
-DELTA_T = 1
-MIN_T = 0
-MAX_T = int(1e4)
-# TODO: optimize for batch processing
-BATCH_SIZE = 100
-REF_BANDWIDTH = 1e6
-
-AVAILABLE_INTERF_TX_MODELS = [
-    "CONSTANT_PFD_AT_GND",
-    # some other, more realistic?
-]
-TX_MODEL = "CONSTANT_PFD_AT_GND"
-TX_MODELS_INFO = {
-    "CONSTANT_PFD_AT_GND": {
-        "PFD_at_ref_bandwidth": -113
-    }
-}
-
-AVAILABLE_REFERENCE_GSO_LINKS = [
-    "DirecTV 15 GW", "Jupiter 97W GW", "Jupiter 97W CT",
-    "Galaxy 30 GW", "Galaxy 30 CT", "SES-15 GW",
-    "SES-17 GW", "SES-17 CT", "Viasat-IOM GW",
-    "Viasat-IOM CT",
-]
-
-REFERENCE_GSO_LINK_INFO = {
-    "DirecTV 15 GW": {  # checked
-        "orbital_slot_deg": -102.75, "center_freq_GHz": 19.95,
-        "downlink_freq_MHz": (18300, 20200),
-        "bandwidth_MHz": 36, "eirp_dBW_per_carrier": 59.5,
-        "rx_antenna_size_m": 13.2, "g_over_t_dB_per_K": 41.4,
-        "peak_rx_antenna_gain": 65.4,
-        "station_type": "GW",
-    },
-    "Jupiter 97W GW": {  # TODO: check
-        "orbital_slot_deg": -97.1, "downlink_freq_MHz": (19700, 20200),
-        "bandwidth_MHz": 250, "eirp_dBW_per_carrier": 61.0,
-        "antenna_size_m": 6.3, "g_over_t_dB_per_K": 38.0,
-        "station_type": "GW",
-    },
-    "Jupiter 97W CT": {  # TODO: check
-        "orbital_slot_deg": -97.1, "center_freq_GHz": 18.675,
-        "downlink_freq_GHz": (18.3, 20.2), "bandwidth_MHz": 500,
-        "eirp_dBW_per_carrier": 64.0, "antenna_size_m": 0.99,
-        "g_over_t_dB_per_K": 19.7, "station_type": "CT",
-    },
-    "Galaxy 30 GW": {  # TODO: check
-        "orbital_slot_deg": -125.0, "downlink_freq_MHz": (17800, 20200),
-        "bandwidth_MHz": 1405, "eirp_dBW_per_carrier": 43.0,
-        "antenna_size_m": 9.4, "g_over_t_dB_per_K": 38.0,
-        "station_type": "GW",
-    },
-    "Galaxy 30 CT": {  # TODO: check
-        "orbital_slot_deg": -125.0, "center_freq_GHz": 19.95,
-        "downlink_freq_GHz": (18.3, 20.2), "bandwidth_MHz": 724,
-        "eirp_dBW_per_carrier": -61.4, "antenna_size_m": 0.98,
-        "g_over_t_dB_per_K": 20.1, "station_type": "CT",
-    },
-    "SES-15 GW": {  # TODO: check
-        "orbital_slot_deg": -129.15, "downlink_freq_MHz": (18300, 20200),
-        "bandwidth_MHz": 225, "eirp_dBW_per_carrier": 63.3,
-        "antenna_size_m": 9.4, "g_over_t_dB_per_K": 38.0,
-        "station_type": "GW",
-    },
-    "SES-17 GW": {  # TODO: check
-        "orbital_slot_deg": -67.0, "downlink_freq_MHz": (17800, 20200),
-        "bandwidth_MHz": 250, "eirp_dBW_per_carrier": 45.2,
-        "antenna_size_m": 9.4, "g_over_t_dB_per_K": 41.3,
-        "station_type": "GW",
-    },
-    "SES-17 CT": {  # TODO: check
-        "orbital_slot_deg": -67.0, "center_freq_GHz": 19.95,
-        "downlink_freq_GHz": (18.3, 20.2), "bandwidth_MHz": 416,
-        "eirp_dBW_per_carrier": 67.0, "antenna_size_m": 0.97,
-        "g_over_t_dB_per_K": 18.7, "station_type": "CT",
-    },
-    "Viasat-IOM GW": {  # TODO: check
-        "orbital_slot_deg": -115.1, "downlink_freq_MHz": (18300, 20200),
-        "bandwidth_MHz": 500, "eirp_dBW_per_carrier": 64.0,
-        "antenna_size_m": 7.3, "g_over_t_dB_per_K": 38.8,
-        "station_type": "GW",
-    },
-    "Viasat-IOM CT": {  # TODO: check
-        "orbital_slot_deg": -115.1, "center_freq_GHz": 19.95,
-        "downlink_freq_GHz": (18.3, 20.2), "bandwidth_MHz": 416,
-        "eirp_dBW_per_carrier": -61.0, "antenna_size_m": 0.745,
-        "g_over_t_dB_per_K": 16.4, "station_type": "CT",
-    },
-}
-
-REFERENCE_GSO_LINK = "DirecTV 15 GW"
-RESULTS_DIR = "./results-DirecTV-15-GW"
+RESULTS_DIR = "./results-ngso"
+DEBUG = False
 
 
 class ResultsWriter:
-    def __init__(self, directory):
+    def __init__(self, directory: str | Path, inp_file: str | Path = None):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.directory = Path(directory) / timestamp
         self.directory.mkdir(parents=True, exist_ok=False)
+
+        if inp_file:
+            inp_file = Path(inp_file)
+            shutil.copy2(inp_file, self.directory / inp_file.name)
 
         self.res = {}
         self.files = {}
@@ -201,277 +114,305 @@ class ResultsWriter:
         self.writers.clear()
 
 
-gso_link_info = REFERENCE_GSO_LINK_INFO[REFERENCE_GSO_LINK]
-# Las Vegas, NV (36.19° N, 115.18° W),
-# Kansas City, MO (39.07° N, 94.60° W),
-# Miami, FL (25.77° N, 80.19° W)
-gso_es_pos = (36.19, -115.18)
-gso_es_alt = itur.topographic_altitude(
-    gso_es_pos[0], gso_es_pos[1]
-).to(itur.u.m).value
-print("gso_es_alt", gso_es_alt)
+@dataclass
+class GSOLinkContext:
+    """
+    All precomputed, time-invariant quantities for one GSO reference link.
+    Built once before the time loop; consumed inside it.
+    """
+    label: str
+    par: ParametersGSO
 
-# gso earth station at (0,0,0)
-global_reference_frame = ENUReferenceFrame(
-    lat=gso_es_pos[0], lon=gso_es_pos[1], alt=gso_es_alt
-)
+    # Geometry objects
+    global_coord_sys: CoordinateSystem
+    global_reference_frame: ENUReferenceFrame
+    es_geom: SimulatorGeometry
+    ss_geom: SimulatorGeometry
+
+    # Precomputed scalars
+    frequency_ghz: float
+    lmbda: float
+    es_rx_ant_d_lmbda: float
+    fspl_dB: float              # scalar — distance doesn't change for GSO
+    elevation_deg: float
+
+    # Rain attenuation inverse CCDF callable
+    rain_inv_ccdf: object       # callable: p -> attenuation [dB]
 
 
-def plot_gso():
-    fig = plot_globe_with_borders(True, global_coord_sys, False)
-    # plot_geom(fig, gso_es_geom, plot_pointing=True)
-    plot_geom(fig, gso_es_geom, plot_pointing=True, boresight_length=100*1e5)
-    plot_geom(fig, gso_ss_geom)
-    # Set the camera position in Plotly
-    # show_range = 1e4
-    show_range = 8e7
-    fig.update_layout(
-        margin=dict(l=0, r=0, t=0, b=0),
-        scene=dict(
-            aspectmode="cube",
-            zaxis=dict(
-                range=(-show_range / 2, show_range / 2)
-            ),
-            yaxis=dict(
-                range=(-show_range / 2, show_range / 2)
-            ),
-            xaxis=dict(
-                range=(-show_range / 2, show_range / 2)
-            ),
-            camera=dict(
-                # center=dict(x=0, y=0, z=center_of_earth.geom.z_global[0] / show_range / 1e3),
-                # eye=dict(x=0, y=0, z=0.7),  # Eye position (above the center)
-                # up=dict(x=0, y=1, z=0)      # "Up" is along +y (default is usually +z)
-            )
-        ),
-        legend=dict(
-            x=0.02,        # Move to left
-            y=0.02,        # Near top
-            bgcolor='rgba(255,255,255,1)',  # Optional: semi-transparent background
-            bordercolor='black',
-            borderwidth=1
-        ),
-        # width=700,
-        # height=700,
+def _build_gso_link_context(gso_par: ParametersGSO) -> GSOLinkContext:
+    """
+    Precompute everything that is static for a given GSO link.
+    Mirrors the module-level setup from the original script, but scoped
+    to a single ParametersGSO instance.
+    """
+    es = gso_par.earth_station
+    lat, lon = es.lat_deg, es.lon_deg
+
+    # Altitude: derive from topography if not explicitly set
+    alt_m = es.alt_m
+    if alt_m is None:
+        alt_m = itur.topographic_altitude(lat, lon).to(itur.u.m).value
+
+    global_reference_frame = ENUReferenceFrame(lat=lat, lon=lon, alt=alt_m)
+
+    global_coord_sys = CoordinateSystem()
+    global_coord_sys.set_reference(lat, lon, alt_m)
+
+    # Earth station geometry (origin of ENU frame)
+    es_geom = SimulatorGeometry(1, False, global_reference_frame)
+    es_geom.set_global_coords(
+        np.array([0.]), np.array([0.]), np.array([0.])
     )
-    return fig
 
-# NOTE:
-# coordinate system is kinda legacy code already. Still, useful for plotting
-# and simpler
-global_coord_sys = CoordinateSystem()
-global_coord_sys.set_reference(
-    gso_es_pos[0], gso_es_pos[1], gso_es_alt
-)
-
-gso_es_geom = SimulatorGeometry(
-    1, False, global_reference_frame
-)
-
-gso_ss_geom = SimulatorGeometry(
-    1, True, global_reference_frame
-)
-gso_ss_geom.set_local_reference_frame(
-    DWNReferenceFrame(
-        lat=0., lon=gso_link_info['orbital_slot_deg'], alt=35786e3
+    # GSO satellite geometry
+    ss_geom = SimulatorGeometry(1, True, global_reference_frame)
+    ss_geom.set_local_reference_frame(
+        DWNReferenceFrame(lat=0., lon=gso_par.orbital_slot_deg, alt=35786e3)
     )
-)
-gso_ss_geom.set_local_coords(
-    np.array([0.]), np.array([0.]), np.array([0.]),
-    np.array([0.]), np.array([0.])
-)
-gso_es_geom.set_global_coords(
-    np.array([0.]), np.array([0.]), np.array([0.]),
-)
+    ss_geom.set_local_coords(
+        np.array([0.]), np.array([0.]), np.array([0.]),
+        np.array([0.]), np.array([0.])
+    )
 
-phi, theta = gso_es_geom.get_global_pointing_vector_to(gso_ss_geom)
-az, el = phi[0], 90. - theta[0]
-gso_es_geom.set_global_coords(azim=az, elev=el)
-gso_ss_geom.set_local_coords(np.array([0.]), np.array([0.]), np.array([0.]))
+    # Point the earth station antenna toward the satellite
+    phi, theta = es_geom.get_global_pointing_vector_to(ss_geom)
+    az, el = phi[0], 90. - theta[0]
+    es_geom.set_global_coords(azim=az, elev=el)
+    ss_geom.set_local_coords(np.array([0.]), np.array([0.]), np.array([0.]))
 
-gso_link_elevation = gso_es_geom.get_local_elevation(gso_ss_geom)
+    elevation_deg = es_geom.get_local_elevation(ss_geom)
 
-gso_link_rain_inv_ccdf = rain_attenuation_inv_ccdf(
-    gso_es_pos[0], gso_es_pos[1],
-    gso_link_info['center_freq_GHz'] * itur.u.GHz,
-    gso_link_elevation,
-    gso_es_alt * itur.u.m,
-)
+    # Link budget precomputations
+    freq_ghz = gso_par.center_freq_GHz
+    lmbda = 3e8 / (freq_ghz * 1e9)
+    es_rx_ant_d_lmbda = gso_par.rx_antenna_size_m / lmbda
 
+    fspl_dB = float(np.ravel(
+        20 * np.log10(es_geom.get_3d_distance_to(ss_geom))
+        + 20 * np.log10(freq_ghz*1e3)
+        - 27.55
+    ).item())
 
-def es_ant_gain_1428(off_axis, ant_gain, d_over_lmbda):
-    off_axis = np.atleast_1d(off_axis)
-    g = np.zeros_like(off_axis)
+    rain_inv_ccdf = rain_attenuation_inv_ccdf(
+        lat, lon,
+        freq_ghz * itur.u.GHz,
+        elevation_deg,
+        alt_m * itur.u.m,
+    )
 
-    if d_over_lmbda < 20:
-        raise ValueError("ma burro")
-    elif d_over_lmbda <= 25:
-        g_max = 20*np.log10(d_over_lmbda) + 7.7
-        g1 = 29 - 25 * np.log10(95/d_over_lmbda)
-        phi_m = 20 / d_over_lmbda * np.sqrt(g_max - g1)
-        g[off_axis < phi_m] = ant_gain - 2.5e-3 * (d_over_lmbda*off_axis[off_axis < phi_m])**2
-        g[off_axis < 95 / d_over_lmbda] = g1
-        g[off_axis < 33.1] = 29 - 25 * np.log10(off_axis[off_axis < 33.1])
-        g[off_axis < 80.] = -9
-        g[off_axis < 180.] = -5
-        # unsupported:
-        g[off_axis > 180.] = -5
-    elif d_over_lmbda <= 100:
-        g_max = 20*np.log10(d_over_lmbda) + 7.7
-        g1 = 29 - 25 * np.log10(95/d_over_lmbda)
-        phi_m = 20 / d_over_lmbda * np.sqrt(g_max - g1)
-        g[off_axis < phi_m] = ant_gain - 2.5e-3 * (d_over_lmbda*off_axis[off_axis < phi_m])**2
-        g[off_axis < 95 / d_over_lmbda] = g1
-        g[off_axis < 33.1] = 29 - 25 * np.log10(off_axis[off_axis < 33.1])
-        g[off_axis < 80.] = -9
-        g[off_axis < 120.] = -4
-        g[off_axis < 180.] = -9
-        # unsupported:
-        g[off_axis > 180.] = -9
-    elif d_over_lmbda > 100:
-        g_max = 20*np.log10(d_over_lmbda) + 8.4
-        g1 = -1 + 15 * np.log10(d_over_lmbda)
-        phi_m = 20 / d_over_lmbda * np.sqrt(g_max - g1)
-        phi_r = 15.85 * d_over_lmbda ** -0.6
-        g[off_axis < phi_m] = ant_gain - 2.5e-3 * (d_over_lmbda*off_axis[off_axis < phi_m])**2
-        g[off_axis < phi_r] = g1
-        g[off_axis < 10.] = 29 - 25 * np.log10(off_axis[off_axis < 10.])
-        g[off_axis < 34.1] = 34 - 30 * np.log10(off_axis[off_axis < 34.1])
-        g[off_axis < 80.] = -12
-        g[off_axis < 120.] = -7
-        g[off_axis < 180.] = -12
-        # unsupported:
-        g[off_axis > 180.] = -12
-
-    return g
+    return GSOLinkContext(
+        label=gso_par.full_name,
+        par=gso_par,
+        global_coord_sys=global_coord_sys,
+        global_reference_frame=global_reference_frame,
+        es_geom=es_geom,
+        ss_geom=ss_geom,
+        frequency_ghz=freq_ghz,
+        lmbda=lmbda,
+        es_rx_ant_d_lmbda=es_rx_ant_d_lmbda,
+        fspl_dB=fspl_dB,
+        elevation_deg=elevation_deg,
+        rain_inv_ccdf=rain_inv_ccdf,
+    )
 
 
-if __name__ == "__main__":
-    orbit_params = [
-        ParametersOrbit(
-            n_planes=289, sats_per_plane=4, inclination_deg=51.9, perigee_alt_km=630., apogee_alt_km=630.,
-            # DOES NOT SPECIFY:
-            phasing_deg=7.5, long_asc_deg=0.,
-            omega_deg=0.,  # argument of perigee. Doesn't matter for circular orbit
-            initial_mean_anomaly=0.,
-        ),
-        ParametersOrbit(
-            n_planes=1292, sats_per_plane=1, inclination_deg=42., perigee_alt_km=610, apogee_alt_km=610,
-            # DOES NOT SPECIFY:
-            phasing_deg=7.5, long_asc_deg=0., omega_deg=0., initial_mean_anomaly=0.,
-        ),
-        ParametersOrbit(
-            n_planes=782, sats_per_plane=1, inclination_deg=33., perigee_alt_km=590, apogee_alt_km=590,
-            # DOES NOT SPECIFY:
-            phasing_deg=7.5, long_asc_deg=0., omega_deg=0., initial_mean_anomaly=0.,
-        ),
-        ParametersOrbit(
-            n_planes=1, sats_per_plane=2, inclination_deg=30., perigee_alt_km=590, apogee_alt_km=590,
-            # DOES NOT SPECIFY:
-            phasing_deg=7.5, long_asc_deg=0., omega_deg=0., initial_mean_anomaly=0.,
-        ),
-    ]
-    orbits = [
+@dataclass
+class EarthStationSnapshot:
+    """Per-earth-station computed quantities for one time step."""
+    ngso_geom: SimulatorGeometry
+    off_axis: np.ndarray        # shape: (total_sats,)
+    selected: np.ndarray        # indices of Nco closest sats
+    ant_rx_gain: np.ndarray     # shape: (Nco,) — NOTE: depends on per-link antenna params
+
+
+def _group_contexts_by_earth_station(
+    gso_contexts: list[GSOLinkContext],
+) -> dict[str, list[GSOLinkContext]]:
+    """
+    Group GSO link contexts by earth station identity.
+    Earth stations are considered identical if they share the same
+    (lat, lon) rounded to 4 decimal places (~11m precision).
+    """
+    def es_key(ctx: GSOLinkContext) -> str:
+        es = ctx.par.earth_station
+        return f"{es.lat_deg:.4f},{es.lon_deg:.4f}"
+
+    # Preserve insertion order within groups
+    groups: dict[str, list[GSOLinkContext]] = {}
+    for ctx in gso_contexts:
+        key = es_key(ctx)
+        groups.setdefault(key, []).append(ctx)
+    return groups
+
+
+def _compute_gso_link_metrics(
+    ctx: GSOLinkContext,
+    off_axis: np.ndarray,
+    selected: np.ndarray,
+    ant_rx_gain: np.ndarray,
+    rain_att: float,            # scalar for this time step, precomputed by caller
+    par: ParametersNGSO2GSO,
+) -> dict:
+    gso_par = ctx.par
+    tx = par.ngso.tx_model
+
+    carrier_pow_dl_per_mhz = (
+        gso_par.eirp_dBW_per_carrier - 10 * np.log10(gso_par.bandwidth_MHz)
+        + gso_par.peak_rx_antenna_gain - gso_par.added_loss
+        - ctx.fspl_dB - rain_att
+    )
+
+    if tx.model == "CONSTANT_PFD_AT_GND":
+        # NOTE: sum power before subtracting rain attenuation
+        # because of numpy shape. Should give same result
+        interf_pow_per_sat = (
+            tx.pfd_at_ref_bandwidth_dBW_m2
+            + 10 * np.log10(ctx.lmbda**2 / (4 * np.pi))
+            + ant_rx_gain - rain_att
+        )
+        interf_pow = 10 * np.log10(np.sum(10 ** (interf_pow_per_sat / 10)))
+    else:
+        raise ValueError(f"Unsupported TX model: {tx.model}")
+
+    noise_density = (
+        10 * np.log10(BOLTZMANN_CONSTANT)
+        + gso_par.peak_rx_antenna_gain
+        - gso_par.g_over_t_dB_per_K
+    )
+    noise_pow = noise_density + 10 * np.log10(par.ref_bandwidth_Hz)
+
+    cn = carrier_pow_dl_per_mhz - noise_pow
+    cni = carrier_pow_dl_per_mhz - 10 * np.log10(
+        10 ** (noise_pow / 10) + 10 ** (interf_pow / 10)
+    )
+    epfd = (
+        interf_pow - gso_par.peak_rx_antenna_gain
+        + 10 * np.log10((4 * np.pi) / ctx.lmbda**2)
+    )
+
+    return {"c": carrier_pow_dl_per_mhz, "cn": cn, "cni": cni,
+            "i": interf_pow, "epfd": epfd, "gso_rain_att": rain_att}
+
+
+def run_simulation(par: ParametersNGSO2GSO, par_file: Path = None):
+    orbit_models = [
         OrbitModel(
             Nsp=p.sats_per_plane, Np=p.n_planes,
             phasing=p.phasing_deg, long_asc=p.long_asc_deg,
             omega=p.omega_deg, delta=p.inclination_deg,
             hp=p.perigee_alt_km, ha=p.apogee_alt_km,
             Mo=p.initial_mean_anomaly,
-            # we don't use time as random, we sample at each instant we want
+            # IGNORE THIS
             model_time_as_random_variable=False,
-            t_min=0,
-            t_max=0,
-        ) for p in orbit_params
+            t_min=0, t_max=0,
+        )
+        for p in par.ngso.orbits
     ]
-    total_sats = sum(o.n_planes * o.sats_per_plane for o in orbit_params)
+    total_sats = sum(p.n_planes * p.sats_per_plane for p in par.ngso.orbits)
 
-    assert total_sats == 3232
+    gso_contexts = [_build_gso_link_context(gso_par) for gso_par in par.gso_links]
+    es_groups = _group_contexts_by_earth_station(gso_contexts)
 
-    frequency_ghz = gso_link_info['center_freq_GHz']
-    lmbda = 3e8 / (frequency_ghz*1e9)
-    es_rx_ant_d_lmbda = gso_link_info['rx_antenna_size_m'] / lmbda
-    gso_fspl = np.ravel(
-        20 * np.log10(
-            gso_es_geom.get_3d_distance_to(gso_ss_geom)
-        ) + 20 * np.log10(frequency_ghz) - 27.55
+    results_writer = ResultsWriter(f"{RESULTS_DIR}/", par_file)
+
+    timeline = np.arange(par.min_t_s, par.max_t_s, par.delta_t_s)
+    n_steps = len(timeline)
+
+    seed_seq = np.random.SeedSequence(par.seed)
+    child_seed_seqs = seed_seq.spawn(n_steps)
+
+    p_rain_all = np.array([
+        np.random.default_rng(s).uniform(0, 100)
+        for s in child_seed_seqs
+    ])  # cheap — just n_steps floats
+
+    # Tune this to your available RAM. At 3232 sats:
+    #   chunk=1000  → ~75MB for orbit positions
+    #   chunk=10000 → ~750MB
+    CHUNK_SIZE = par.batch_size * 10
+
+    for chunk_start in tqdm(range(0, n_steps, CHUNK_SIZE), desc="chunks"):
+        chunk_end = min(chunk_start + CHUNK_SIZE, n_steps)
+        chunk_timeline = timeline[chunk_start:chunk_end]
+        chunk_p_rain = p_rain_all[chunk_start:chunk_end]   # (chunk,)
+
+        # --- Batch orbit propagation for this chunk ---
+        all_orbit_positions = [
+            o.get_orbit_positions_time_instant(chunk_timeline)
+            for o in orbit_models
+        ]
+        # (chunk, total_sats)
+        ngso_x_ecef = np.vstack([pos['sx'] for pos in all_orbit_positions]) * 1e3
+        ngso_y_ecef = np.vstack([pos['sy'] for pos in all_orbit_positions]) * 1e3
+        ngso_z_ecef = np.vstack([pos['sz'] for pos in all_orbit_positions]) * 1e3
+
+        # --- Batch rain attenuation for this chunk ---
+        rain_att_chunk: dict[str, np.ndarray] = {
+            ctx.label: ctx.rain_inv_ccdf(chunk_p_rain).value[0]
+            for ctx in gso_contexts
+        }
+
+        # --- Step loop within chunk ---
+        for i in tqdm(range(len(chunk_timeline)), desc="steps", leave=False):
+            for es_key, ctx_group in es_groups.items():
+                ref_ctx = ctx_group[0]
+
+                nx, ny, nz = ref_ctx.global_coord_sys.ecef2enu(
+                    ngso_x_ecef[:, i], ngso_y_ecef[:, i], ngso_z_ecef[:, i]
+                )
+                ngso_geom = SimulatorGeometry(total_sats)
+                ngso_geom.set_global_coords(nx, ny, nz)
+
+                off_axis = ref_ctx.es_geom.get_off_axis_angle(ngso_geom)[0]
+                elevation = ref_ctx.es_geom.get_local_elevation(ngso_geom)[0]
+                off_axis = off_axis[elevation > par.minimum_elevation]
+                if par.ngso.gso_protection_avoidance_angle is not None:
+                    off_axis = off_axis[off_axis > par.ngso.gso_protection_avoidance_angle]
+                selected = np.argsort(off_axis)[:par.ngso.n_co_channel]
+
+                for ctx in ctx_group:
+                    ant_rx_gain = es_ant_gain_1428(
+                        off_axis[selected],
+                        ctx.par.peak_rx_antenna_gain,
+                        ctx.es_rx_ant_d_lmbda,
+                    )
+                    metrics = _compute_gso_link_metrics(
+                        ctx, off_axis, selected, ant_rx_gain,
+                        rain_att_chunk[ctx.label][i], par
+                    )
+                    results_writer.add_results(
+                        metrics, f"gso_per_iteration{STR_SEPARATOR}{ctx.label}"
+                    )
+
+            global_step = chunk_start + i
+            if global_step % par.batch_size == 0:
+                results_writer.flush_results()
+
+    results_writer.flush_results()
+    results_writer.close()
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="SHARC - Radio Sharing and Compatiblity Monte Carlo Simulator"
+    )
+    parser.add_argument("-p", "--param-file", help="Path to parameter file")
+    args = parser.parse_args()
+
+    if Path(args.param_file).is_absolute():
+        param_file = Path(args.param_file)
+    else:
+        param_file = Path(".") / args.param_file
+
+    par = ParametersNGSO2GSO()
+    par.load_parameters_from_file(param_file)
+    par.validate("ngso2gso")
+
+    run_simulation(
+        par, param_file
     )
 
-    first_plot = True
-    rng = np.random.default_rng(SEED)
-    ngso_geom = SimulatorGeometry(total_sats)
 
-    results_writer = ResultsWriter(RESULTS_DIR)
-
-    timeline = np.arange(MIN_T, MAX_T, DELTA_T)
-    for timeline_i in tqdm(range(len(timeline))):
-        t = timeline[timeline_i]
-        orbit_positions = [o.get_orbit_positions_time_instant(np.array([t])) for o in orbits]
-        # ECEF
-        ngso_sat_x = np.ravel(np.concatenate([pos['sx'] for pos in orbit_positions])) * 1e3
-        ngso_sat_y = np.ravel(np.concatenate([pos['sy'] for pos in orbit_positions])) * 1e3
-        ngso_sat_z = np.ravel(np.concatenate([pos['sz'] for pos in orbit_positions])) * 1e3
-        # ECEF2ENU (considering victim earth station ENU)
-        ngso_sat_x, ngso_sat_y, ngso_sat_z = \
-            global_coord_sys.ecef2enu(ngso_sat_x, ngso_sat_y, ngso_sat_z)
-
-        ngso_geom.set_global_coords(ngso_sat_x, ngso_sat_y, ngso_sat_z)
-
-        p = rng.uniform(0, 1, t.shape)
-        gso_rain_att = gso_link_rain_inv_ccdf(p).value[:, 0]
-
-        carrier_pow_dl = (
-            gso_link_info['eirp_dBW_per_carrier']
-            + gso_link_info['peak_rx_antenna_gain'] - 3.0
-            - gso_fspl - gso_rain_att
-        )
-        if TX_MODEL == "CONSTANT_PFD_AT_GND":
-            interf_pfd = TX_MODELS_INFO[TX_MODEL]["PFD_at_ref_bandwidth"]
-            # TODO: use NGSO own attenuation
-            # challenge will probably be performance. We would first have to
-            # precompute everything possible. If it's not enough, interpolate
-            # through different elevations
-            # TODO: correlation with GSO? Maybe use the same p% of the time for both attenuations
-            # or, even more correct, use the same rain rate for both at the same time step
-            # NOTE: kinda does not make sense to sample from a random distribution
-            # for a single time instant. Think of doing montecarlo for each time step
-            ngso_rain_att = gso_rain_att
-            off_axis = gso_es_geom.get_off_axis_angle(ngso_geom)[0]
-            # WORST CASE
-            selected_sats = np.argsort(off_axis)[:Nco]
-
-            ant_rx_gain = es_ant_gain_1428(
-                off_axis[selected_sats], gso_link_info["peak_rx_antenna_gain"], es_rx_ant_d_lmbda
-            )
-            interf_pow_per_sat = (
-                interf_pfd + 10*np.log10(lmbda**2/(4*np.pi)) - ngso_rain_att + ant_rx_gain
-            )
-            interf_pow = 10 * np.log10(np.sum(10**(interf_pow_per_sat/10)))
-        else:
-            raise ValueError(f"Cannot deal with TX_MODEL={TX_MODEL}")
-
-        noise_density = (
-            10 * np.log10(BOLTZMANN_CONSTANT)
-            + gso_link_info["peak_rx_antenna_gain"]
-            - gso_link_info["g_over_t_dB_per_K"]
-        )
-        noise_pow = noise_density + 10 * np.log10(REF_BANDWIDTH)
-        cn = carrier_pow_dl - noise_pow
-        cni = carrier_pow_dl - 10*np.log10(
-            10**(noise_pow/10) + 10**(interf_pow/10)
-        )
-        results_writer.add_results({
-            "c": carrier_pow_dl,
-            "cn": cn,
-            "cni": cni,
-            "gso_rain_att": gso_rain_att,
-        }, "gso_per_iteration")
-
-        if DEBUG and first_plot:
-            first_plot = False
-            fig = plot_gso()
-            # fig = plot_globe_with_borders(True, global_coord_sys, False)
-            plot_geom(fig, ngso_geom)
-            fig.show()
-        if timeline_i % BATCH_SIZE == 0:
-            results_writer.flush_results()
+if __name__ == "__main__":
+    main()
