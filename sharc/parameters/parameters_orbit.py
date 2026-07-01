@@ -71,7 +71,7 @@ class ParametersOrbit(ParametersBase):
                     self.phasing_deg}. \
                              Must be in the range [0, 360] degrees.")
 
-        if self.enable_time_as_only_random_variable:
+        if self.model_time_as_random_variable:
             if self.t_max is None:
                 warn(
                     f"{ctx}.t_max was not set. Default values will be used when needed"
@@ -82,15 +82,15 @@ class ParametersOrbit(ParametersBase):
             if self.t_min < 0:
                 raise ValueError(f"{ctx}.t_min should be >= 0")
 
-        if not self.enable_time_as_only_random_variable:
+        if not self.model_time_as_random_variable:
             # check that defaults haven't been changed
             if self.t_max != ParametersOrbit.t_max:
                 raise ValueError(
                     f"You should only set {ctx}.t_max "
-                    f"if {ctx}.enable_time_as_only_random_variable is set to True"
+                    f"if {ctx}.model_time_as_random_variable is set to True"
                 )
             if self.t_min != ParametersOrbit.t_min:
                 raise ValueError(
                     f"You should only set {ctx}.t_min "
-                    f"if {ctx}.enable_time_as_only_random_variable is set to True"
+                    f"if {ctx}.model_time_as_random_variable is set to True"
                 )
