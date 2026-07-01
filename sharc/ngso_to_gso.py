@@ -1,4 +1,5 @@
 import itur
+import json
 import shutil
 import argparse
 from sharc.satellite.scripts.plot_globe import plot_globe_with_borders
@@ -21,22 +22,114 @@ from tqdm import tqdm
 import csv
 
 RESULTS_DIR = "./results-ngso"
+RESULTS_JSON_RESUME_PATH = Path(f"{RESULTS_DIR}/results.json")
+
 DEBUG = False
 
 
-class ResultsWriter:
-    def __init__(self, directory: str | Path, inp_file: str | Path = None):
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.directory = Path(directory) / timestamp
-        self.directory.mkdir(parents=True, exist_ok=False)
+def plot_scenario(
+    global_coord_sys: CoordinateSystem,
+    gso_es_geom: SimulatorGeometry,
+    gso_ss_geom: SimulatorGeometry,
+    ngso_geom: SimulatorGeometry,
+):
+    fig = plot_globe_with_borders(True, global_coord_sys, False)
+    # plot_geom(fig, gso_es_geom, plot_pointing=True)
+    plot_geom(fig, gso_es_geom, plot_pointing=True, boresight_length=100*1e5)
+    plot_geom(fig, gso_ss_geom)
+    plot_geom(fig, ngso_geom)
+    # Set the camera position in Plotly
+    # show_range = 1e4
+    show_range = 8e7
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0),
+        scene=dict(
+            aspectmode="cube",
+            zaxis=dict(
+                range=(-show_range / 2, show_range / 2)
+            ),
+            yaxis=dict(
+                range=(-show_range / 2, show_range / 2)
+            ),
+            xaxis=dict(
+                range=(-show_range / 2, show_range / 2)
+            ),
+            camera=dict(
+                # center=dict(x=0, y=0, z=center_of_earth.geom.z_global[0] / show_range / 1e3),
+                # eye=dict(x=0, y=0, z=0.7),  # Eye position (above the center)
+                # up=dict(x=0, y=1, z=0)      # "Up" is along +y (default is usually +z)
+            )
+        ),
+        legend=dict(
+            x=0.02,        # Move to left
+            y=0.02,        # Near top
+            bgcolor='rgba(255,255,255,1)',  # Optional: semi-transparent background
+            bordercolor='black',
+            borderwidth=1
+        ),
+        # width=700,
+        # height=700,
+    )
+    return fig
 
-        if inp_file:
-            inp_file = Path(inp_file)
-            shutil.copy2(inp_file, self.directory / inp_file.name)
+
+class MockResultsWriter:
+    def __init__(self, *args):
+        pass
+
+    @property
+    def directory(self):
+        return "mock_dir"
+
+    def add_results(self, *args):
+        pass
+
+    def flush_results(self):
+        pass
+
+    def close(self):
+        pass
+
+
+class ResultsWriter:
+    @staticmethod
+    def form_results_path(directory: str | Path, timestamp: str):
+        return Path(directory) / timestamp
+
+    def __init__(
+        self,
+        directory: str | Path,
+        inp_file: str | Path,
+        continue_from_timestamp: str | None = None
+    ):
+        if continue_from_timestamp is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        else:
+            timestamp = continue_from_timestamp
+
+        self.directory = ResultsWriter.form_results_path(directory, timestamp)
+
+        if continue_from_timestamp is None:
+            self._setup_new_dir(inp_file)
+        else:
+            self._check_existing_dir()
 
         self.res = {}
         self.files = {}
         self.writers = {}
+
+    def _check_existing_dir(self):
+        if not self.directory.exists():
+            raise ValueError(
+                "Cannot send results to a non existing results directory "
+                f"{self.directory}"
+            )
+
+    def _setup_new_dir(self, inp_file: str | Path):
+        self.directory.mkdir(parents=True, exist_ok=False)
+
+        inp_file = Path(inp_file)
+        shutil.copy2(inp_file, self.directory / inp_file.name)
 
     def add_results(self, new_res: dict, attr_name: str):
         # Normalize everything to lists
@@ -295,7 +388,12 @@ def _compute_gso_link_metrics(
             "i": interf_pow, "epfd": epfd, "gso_rain_att": rain_att}
 
 
-def run_simulation(par: ParametersNGSO2GSO, par_file: Path = None):
+def run_simulation(
+    par: ParametersNGSO2GSO,
+    results_writer: ResultsWriter,
+    par_file: Path = None,
+    start_from_drop=0,
+):
     orbit_models = [
         OrbitModel(
             Nsp=p.sats_per_plane, Np=p.n_planes,
@@ -314,8 +412,6 @@ def run_simulation(par: ParametersNGSO2GSO, par_file: Path = None):
     gso_contexts = [_build_gso_link_context(gso_par) for gso_par in par.gso_links]
     es_groups = _group_contexts_by_earth_station(gso_contexts)
 
-    results_writer = ResultsWriter(f"{RESULTS_DIR}/", par_file)
-
     timeline = np.arange(par.min_t_s, par.max_t_s, par.delta_t_s)
     n_steps = len(timeline)
 
@@ -326,14 +422,29 @@ def run_simulation(par: ParametersNGSO2GSO, par_file: Path = None):
         np.random.default_rng(s).uniform(0, 100)
         for s in child_seed_seqs
     ])  # cheap — just n_steps floats
+    generic_rng = np.random.default_rng(par.seed)
 
     # Tune this to your available RAM. At 3232 sats:
     #   chunk=1000  → ~75MB for orbit positions
     #   chunk=10000 → ~750MB
-    CHUNK_SIZE = par.batch_size * 10
+    # par.batch_size
+    orig_steps = np.array(range(0, n_steps, par.batch_size))
+    actual_steps = orig_steps[orig_steps >= start_from_drop]
 
-    for chunk_start in tqdm(range(0, n_steps, CHUNK_SIZE), desc="chunks"):
-        chunk_end = min(chunk_start + CHUNK_SIZE, n_steps)
+    # NOTE: this is cause I'm assuming that we're not missing in-between drops
+    # later on
+    assert actual_steps[0] == start_from_drop
+
+    start_at_chunk = len(orig_steps) - len(actual_steps)
+
+    already_plotted = False
+
+    for chunk_start in tqdm(
+        actual_steps, desc="chunks",
+        total=len(orig_steps),
+        initial=start_at_chunk
+    ):
+        chunk_end = min(chunk_start + par.batch_size, n_steps)
         chunk_timeline = timeline[chunk_start:chunk_end]
         chunk_p_rain = p_rain_all[chunk_start:chunk_end]   # (chunk,)
 
@@ -352,7 +463,6 @@ def run_simulation(par: ParametersNGSO2GSO, par_file: Path = None):
             ctx.label: ctx.rain_inv_ccdf(chunk_p_rain).value[0]
             for ctx in gso_contexts
         }
-
         # --- Step loop within chunk ---
         for i in tqdm(range(len(chunk_timeline)), desc="steps", leave=False):
             for es_key, ctx_group in es_groups.items():
@@ -367,9 +477,19 @@ def run_simulation(par: ParametersNGSO2GSO, par_file: Path = None):
                 off_axis = ref_ctx.es_geom.get_off_axis_angle(ngso_geom)[0]
                 elevation = ref_ctx.es_geom.get_local_elevation(ngso_geom)[0]
                 off_axis = off_axis[elevation > par.minimum_elevation]
+                elevation = elevation[elevation > par.minimum_elevation]
+
                 if par.ngso.gso_protection_avoidance_angle is not None:
+                    elevation = elevation[off_axis > par.ngso.gso_protection_avoidance_angle]
                     off_axis = off_axis[off_axis > par.ngso.gso_protection_avoidance_angle]
-                selected = np.argsort(off_axis)[:par.ngso.n_co_channel]
+                # selected = np.argsort(off_axis)[:par.ngso.n_co_channel]
+                # selected = np.argsort(-elevation)[:par.ngso.n_co_channel]
+                n = min(par.ngso.n_co_channel, len(off_axis))
+                selected = generic_rng.choice(
+                    len(off_axis),
+                    size=n,
+                    replace=False
+                )
 
                 for ctx in ctx_group:
                     ant_rx_gain = es_ant_gain_1428(
@@ -384,13 +504,86 @@ def run_simulation(par: ParametersNGSO2GSO, par_file: Path = None):
                     results_writer.add_results(
                         metrics, f"gso_per_iteration{STR_SEPARATOR}{ctx.label}"
                     )
+                    if not already_plotted and DEBUG:
+                        already_plotted = True
+                        plot_scenario(
+                            ctx.global_coord_sys,
+                            ctx.es_geom, ctx.ss_geom, ngso_geom
+                        ).show()
 
-            global_step = chunk_start + i
-            if global_step % par.batch_size == 0:
-                results_writer.flush_results()
+        results_writer.flush_results()
 
     results_writer.flush_results()
     results_writer.close()
+
+
+def create_results_writer(
+    param_file: Path, par: ParametersNGSO2GSO
+):
+    # return MockResultsWriter()
+
+    params_text = param_file.read_text()
+
+    if RESULTS_JSON_RESUME_PATH.exists():
+        results_json_resume = json.loads(
+            RESULTS_JSON_RESUME_PATH.read_text()
+        )
+    else:
+        results_json_resume = {}
+
+    latest_result_dir = None
+    if par.scenario_name in results_json_resume:
+        latest_result_dir = Path(results_json_resume[par.scenario_name]['latest_res_dir'])
+
+    if latest_result_dir is not None and latest_result_dir.exists():
+        latest_file = list(latest_result_dir.glob("*.yaml"))[0]
+        latest_file_params_text = latest_file.read_text()
+    else:
+        latest_file = None
+        latest_file_params_text = None
+
+    results_writer = None
+    drops_ran = 0
+
+    if latest_file_params_text == params_text:
+        csvs_at_dir = list(latest_result_dir.glob("gso_per_iteration*.csv"))
+        if len(csvs_at_dir) != 0:
+            per_drop_csv = csvs_at_dir[0]
+            drops_ran = len(per_drop_csv.read_text().split('\n')) - 2
+            drops_should_run = (par.max_t_s - par.min_t_s) / par.delta_t_s
+
+            if drops_ran != drops_should_run:
+                dt_str = str(latest_result_dir.name)
+                dt = datetime.strptime(dt_str, "%Y%m%d_%H%M%S")
+                print(
+                    "It seems there already a previous simulation "
+                    "with the exact same parameters, started on \n"
+                    f"{dt.year}-{dt.month}-{dt.day} {dt.hour}:{dt.minute}:{dt.second}"
+                )
+                res = None
+                while res not in ["Y", "N"]:
+                    res = input("Do you wish to continue the previous simulation? [Y/N]")
+                    res = res.upper()
+
+                if res == "Y":
+                    results_writer = ResultsWriter(
+                        f"{RESULTS_DIR}/", param_file, dt_str
+                    )
+
+    if results_writer is None:
+        results_writer = ResultsWriter(
+            f"{RESULTS_DIR}/", param_file,
+        )
+
+    results_json_resume.setdefault(
+        par.scenario_name, {}
+    )['latest_res_dir'] = str(results_writer.directory)
+
+    RESULTS_JSON_RESUME_PATH.write_text(json.dumps(
+        results_json_resume, sort_keys=True, indent=4
+    ))
+
+    return results_writer, drops_ran
 
 
 def main():
@@ -398,6 +591,10 @@ def main():
         description="SHARC - Radio Sharing and Compatiblity Monte Carlo Simulator"
     )
     parser.add_argument("-p", "--param-file", help="Path to parameter file")
+    # parser.add_argument(
+    #     "-ni", "--non-interactive",
+    #     help="By default, this cmd may prompt you for answers"
+    # )
     args = parser.parse_args()
 
     if Path(args.param_file).is_absolute():
@@ -409,8 +606,13 @@ def main():
     par.load_parameters_from_file(param_file)
     par.validate("ngso2gso")
 
+    results_writer, drops_ran = create_results_writer(param_file, par)
+
+    print(f"Results will be saved on {results_writer.directory}")
+
     run_simulation(
-        par, param_file
+        par, results_writer, param_file,
+        start_from_drop=drops_ran
     )
 
 
