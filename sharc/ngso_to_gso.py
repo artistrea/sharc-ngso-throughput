@@ -490,10 +490,10 @@ def run_simulation(
                     size=n,
                     replace=False
                 )
-
+                selected_off_axis = off_axis[selected]
                 for ctx in ctx_group:
                     ant_rx_gain = es_ant_gain_1428(
-                        off_axis[selected],
+                        selected_off_axis,
                         ctx.par.peak_rx_antenna_gain,
                         ctx.es_rx_ant_d_lmbda,
                     )
@@ -504,6 +504,28 @@ def run_simulation(
                     results_writer.add_results(
                         metrics, f"gso_per_iteration{STR_SEPARATOR}{ctx.label}"
                     )
+                    equivalent_rx_gain = 10*np.log10(
+                        np.sum(10**(ant_rx_gain/10))
+                    )
+                    epfd_from_pfd = (
+                        par.ngso.tx_model.pfd_at_ref_bandwidth_dBW_m2
+                        + equivalent_rx_gain - ctx.par.peak_rx_antenna_gain
+                    )
+                    results_writer.add_results(
+                        {
+                            "off_axis": selected_off_axis,
+                            "ant_rx_gain": ant_rx_gain,
+                        }, f"gso_per_ngso_per_iteration{STR_SEPARATOR}{ctx.label}"
+                    )
+                    results_writer.add_results(
+                        {
+                            "equivalent_rx_gain": equivalent_rx_gain,
+                            "epfd_from_pfd": epfd_from_pfd,
+                        }, f"extra_info{STR_SEPARATOR}{ctx.label}"
+                    )
+
+                    if not already_plotted and DEBUG:
+                        already_plotted = True
                     if not already_plotted and DEBUG:
                         already_plotted = True
                         plot_scenario(

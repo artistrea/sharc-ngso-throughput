@@ -25,6 +25,13 @@ def rain_attenuation_inv_ccdf(lat, lon, f, el, hs=None, R001=None,
     R001 = prepare_quantity(R001, u.mm / u.hr, 'Point rainfall rate')
     tau = prepare_quantity(tau, u.one, 'Polarization tilt angle')
     Ls = prepare_quantity(Ls, u.km, 'Slant path length')
+    # print("lon", lon)
+    # print("f", f)
+    # print("el", el)
+    # print("hs", hs)
+    # print("R001", R001)
+    # print("tau", tau)
+    # print("Ls", Ls)
 
     Re = 8500   # Efective radius of the Earth (8500 km)
 
@@ -91,15 +98,28 @@ def rain_attenuation_inv_ccdf(lat, lon, f, el, hs=None, R001=None,
                 RuntimeWarning('The method to compute the rain attenuation in '
                                'recommendation ITU-P 618-12 is only valid for '
                                'unavailability values between 0.001 and 5'))
-        if p >= 1:
-            beta = np.zeros_like(A001)
-        else:
-            beta = np.where(np.abs(lat) >= 36,
-                            np.zeros_like(A001),
-                            np.where((np.abs(lat) < 36) & (el > 25),
-                                     -0.005 * (np.abs(lat) - 36),
-                                     -0.005 * (np.abs(lat) - 36) + 1.8 -
-                                     4.25 * np.sin(np.deg2rad(el))))
+        # if p >= 1:
+        #     beta = np.zeros_like(A001)
+        # else:
+        #     beta = np.where(np.abs(lat) >= 36,
+        #                     np.zeros_like(A001),
+        #                     np.where((np.abs(lat) < 36) & (el > 25),
+        #                              -0.005 * (np.abs(lat) - 36),
+        #                              -0.005 * (np.abs(lat) - 36) + 1.8 -
+        #                              4.25 * np.sin(np.deg2rad(el))))
+        beta = np.where(
+                p >= 1,
+                np.zeros_like(A001),
+                np.where(
+                    np.abs(lat) >= 36,
+                    np.zeros_like(A001),
+                    np.where(
+                        (np.abs(lat) < 36) & (el > 25),
+                        -0.005 * (np.abs(lat) - 36),
+                        -0.005 * (np.abs(lat) - 36) + 1.8 - 4.25 * np.sin(np.deg2rad(el))
+                    )
+                )
+            )
 
         f = (0.655 + 0.033 * np.log(p) - 0.045 * np.log(A001) -
                       beta * (1 - p) * np.sin(np.deg2rad(el)))

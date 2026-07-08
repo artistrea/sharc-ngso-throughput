@@ -100,6 +100,11 @@ class ParametersGSO(ParametersBase):
         super().validate(ctx)
 
         self.full_name = self.label + STR_SEPARATOR + self.earth_station.label
+        # print("#######################")
+        # print("self.full_name", self.full_name)
+        # print("D =", self.rx_antenna_size_m)
+        # print("g_max =", self.peak_rx_antenna_gain)
+        # print()
 
 
 # ---------------------------------------------------------------------------

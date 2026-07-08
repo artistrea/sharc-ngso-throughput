@@ -50,3 +50,47 @@ def es_ant_gain_1428(off_axis, ant_gain, d_over_lmbda):
         g[off_axis < phi_m] = ant_gain - 2.5e-3 * (d_over_lmbda*off_axis[off_axis < phi_m])**2
 
     return g
+
+
+def plot_gain():
+    import matplotlib.pyplot as plt
+    off_axis = np.linspace(0.01, 180, 5000)
+
+    # eta = 0.5
+    D = 0.9
+    lmbda = (3e8/18e9)
+    # max_g = 10*np.log10(eta) + 20*np.log10(np.pi * D / lmbda)
+    max_g = 42.7
+    print("max_g", max_g)
+    cases = [
+        # (22, 34.5),   # 20 <= D/lambda <= 25
+        # (50, 41.7),   # 25 < D/lambda <= 100
+        # (65.4, 13.2/(3e8/18e9)),  # D/lambda > 100
+        (D/lmbda, max_g),  # D/lambda > 100
+    ]
+    # epfd = pfd - g_max + g(theta) - rain_loss
+
+    plt.figure(figsize=(10, 6))
+
+    for d_over_lmbda, ant_gain in cases:
+        gain = es_ant_gain_1428(off_axis, ant_gain, d_over_lmbda)
+        plt.plot(
+            off_axis,
+            gain,
+            label=fr"$D/\lambda={d_over_lmbda}$"
+        )
+
+    plt.xlim(0, 80)
+    plt.ylim(-20, 60)
+
+    plt.xlabel("Off-axis angle (degrees)")
+    plt.ylabel("Gain (dBi)")
+    plt.title("ITU-R S.1428 Earth Station Antenna Pattern")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+
+if __name__ == "__main__":
+    plot_gain()

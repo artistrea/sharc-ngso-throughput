@@ -1,0 +1,240 @@
+gso_links_helpers:
+  places:
+    las_vegas_earth_station: &las_vegas_earth_station
+      earth_station:
+        label: "Las Vegas"
+        lat_deg: 36.19
+        lon_deg: -115.18
+    kansas_earth_station: &kansas_earth_station
+      earth_station:
+        label: Kansas
+        lat_deg: 39.07
+        lon_deg: -94.6
+    miami_earth_station: &miami_earth_station
+      earth_station:
+        label: Miami
+        lat_deg: 25.77
+        lon_deg: -80.19
+
+  links:
+    directv_15_gw: &directv_15_gw
+      label: DirecTV 15 GW
+      orbital_slot_deg: -102.75
+      center_freq_GHz: 19.95
+      downlink_freq_MHz: !!python/tuple [18300, 20200]
+      bandwidth_MHz: 36.0
+      eirp_dBW_per_carrier: 59.5
+      peak_rx_antenna_gain: 65.4
+      rx_antenna_size_m: 13.2
+      g_over_t_dB_per_K: 41.4
+      station_type: GW
+    jupiter_97w_gw: &jupiter_97w_gw
+      label: Jupiter 97W GW
+      orbital_slot_deg: -97.1
+      center_freq_GHz: 20.075
+      downlink_freq_MHz: !!python/tuple [19700, 20200]
+      bandwidth_MHz: 250.0
+      eirp_dBW_per_carrier: 71.0
+      peak_rx_antenna_gain: 62.0
+      rx_antenna_size_m: 6.3
+      g_over_t_dB_per_K: 38.0
+      station_type: GW
+
+    jupiter_97w_ct: &jupiter_97w_ct
+      label: Jupiter 97W CT
+      orbital_slot_deg: -97.1
+      center_freq_GHz: 18.675
+      downlink_freq_MHz: !!python/tuple [18300, 20200]
+      bandwidth_MHz: 500.0
+      eirp_dBW_per_carrier: 71.0
+      peak_rx_antenna_gain: 43.7
+      rx_antenna_size_m: 0.9
+      g_over_t_dB_per_K: 19.7
+      station_type: CT
+
+    galaxy_30_gw: &galaxy_30_gw
+      label: Galaxy 30 GW
+      orbital_slot_deg: -125.0
+      center_freq_GHz: 19.95
+      downlink_freq_MHz: !!python/tuple [17800, 20200]
+      bandwidth_MHz: 140.0
+      eirp_dBW_per_carrier: 64.0
+      peak_rx_antenna_gain: 62.0
+      rx_antenna_size_m: 9.4
+      g_over_t_dB_per_K: 38.0
+      station_type: GW
+
+    galaxy_30_ct: &galaxy_30_ct
+      label: Galaxy 30 CT
+      orbital_slot_deg: -125.0
+      center_freq_GHz: 19.95
+      downlink_freq_MHz: !!python/tuple [18300, 20200]
+      bandwidth_MHz: 500.0
+      eirp_dBW_per_carrier: 64.0
+      peak_rx_antenna_gain: 44.1
+      rx_antenna_size_m: 0.98
+      g_over_t_dB_per_K: 20.1
+      station_type: CT
+
+    ses_15_gw: &ses_15_gw
+      label: SES-15 GW
+      orbital_slot_deg: -129.15
+      center_freq_GHz: 20.015
+      downlink_freq_MHz: !!python/tuple [18300, 20200]
+      bandwidth_MHz: 5.2
+      eirp_dBW_per_carrier: 31.4
+      peak_rx_antenna_gain: 65.3
+      rx_antenna_size_m: 13.2
+      g_over_t_dB_per_K: 41.3
+      station_type: GW
+
+    ses_17_gw: &ses_17_gw
+      label: SES-17 GW
+      orbital_slot_deg: -67.0
+      center_freq_GHz: 18.4
+      downlink_freq_MHz: !!python/tuple [17800, 20200]
+      bandwidth_MHz: 225.0
+      eirp_dBW_per_carrier: 63.3
+      peak_rx_antenna_gain: 59.2
+      rx_antenna_size_m: 6.3
+      g_over_t_dB_per_K: 35.2
+      station_type: GW
+
+    ses_17_ct: &ses_17_ct
+      label: SES-17 CT
+      orbital_slot_deg: -67.0
+      center_freq_GHz: 18.0
+      downlink_freq_MHz: !!python/tuple [17800, 20200]
+      bandwidth_MHz: 72.0
+      eirp_dBW_per_carrier: 61.4
+      peak_rx_antenna_gain: 42.7
+      rx_antenna_size_m: 0.9
+      g_over_t_dB_per_K: 18.7
+      station_type: CT
+
+    viasat_iom_gw: &viasat_iom_gw
+      label: Viasat-IOM GW
+      orbital_slot_deg: -115.1
+      center_freq_GHz: 19.95
+      downlink_freq_MHz: !!python/tuple [18300, 20200]
+      bandwidth_MHz: 20.0
+      eirp_dBW_per_carrier: 45.2
+      peak_rx_antenna_gain: 62.8
+      rx_antenna_size_m: 7.3
+      g_over_t_dB_per_K: 38.8
+      station_type: GW
+
+    viasat_iom_ct: &viasat_iom_ct
+      label: Viasat-IOM CT
+      orbital_slot_deg: -115.1
+      center_freq_GHz: 19.95
+      downlink_freq_MHz: !!python/tuple [18300, 20200]
+      bandwidth_MHz: 416.0
+      eirp_dBW_per_carrier: 67.0
+      peak_rx_antenna_gain: 40.4
+      rx_antenna_size_m: 0.745
+      g_over_t_dB_per_K: 16.4
+      station_type: CT
+
+
+ngso2gso:
+    scenario_name: scenario3
+    seed: 1253
+    delta_t_s: 1.0
+    min_t_s: 0.0
+    # max_t_s: 100000.0
+    max_t_s: 1000000.0
+    batch_size: 700
+    ref_bandwidth_Hz: 1000000
+    minimum_elevation: 35.0
+
+    ngso:
+      gso_protection_avoidance_angle: 2.0
+      n_co_channel: 8  # Nco
+      tx_model:
+        model: CONSTANT_PFD_AT_GND
+        pfd_at_ref_bandwidth_dBW_m2: -115.0
+      orbits:
+        # NOTE: from USASAT-NGSO-8A
+        # NOTE: the phasing_deg parameter is known to be wrong
+        # phasing between planes is not fixed for all planes
+        - n_planes: 289
+          sats_per_plane: 4
+          inclination_deg: 51.9
+          perigee_alt_km: 630.0
+          apogee_alt_km: 630.0
+          phasing_deg: 71.09
+        # NOTE: from USASAT-NGSO-8A
+        # NOTE: dissonant information from ITU filing and FCC Comments
+        # on ITU, inclination is 33deg. On FCC, 30deg
+        - n_planes: 1
+          sats_per_plane: 2
+          inclination_deg: 30.0
+          perigee_alt_km: 590.0
+          apogee_alt_km: 590.0
+          phasing_deg: 0.0  # does not matter, since only 1 plane
+        # NOTE: from USASAT-NGSO-8B
+        - n_planes: 1292
+          sats_per_plane: 1
+          inclination_deg: 42.0
+          perigee_alt_km: 610.0
+          apogee_alt_km: 610.0
+          # NOTE: do not know what exactly are the digits after .93, I just know they exist
+          phasing_deg: 273.933
+        # NOTE: from USASAT-NGSO-8C
+        - n_planes: 782
+          sats_per_plane: 1
+          inclination_deg: 33.0
+          perigee_alt_km: 590.0
+          apogee_alt_km: 590.0
+          phasing_deg: 16.615  # NOTE: there are more digits than .61, that is known
+
+    gso_links:
+      - <<: *directv_15_gw
+        <<: *miami_earth_station
+        added_loss: 3
+      - <<: *jupiter_97w_gw
+        <<: *miami_earth_station
+        added_loss: 3
+      - <<: *jupiter_97w_ct
+        <<: *miami_earth_station
+        added_loss: 3
+      - <<: *jupiter_97w_ct
+        <<: *las_vegas_earth_station
+        added_loss: 3
+      - <<: *galaxy_30_gw
+        <<: *miami_earth_station
+        added_loss: 3
+      - <<: *galaxy_30_ct
+        <<: *miami_earth_station
+        added_loss: 3
+      - <<: *galaxy_30_ct
+        <<: *las_vegas_earth_station
+        added_loss: 3
+      - <<: *ses_15_gw
+        <<: *kansas_earth_station
+        added_loss: 3
+      - <<: *ses_15_gw
+        <<: *las_vegas_earth_station
+        added_loss: 3
+      - <<: *ses_17_gw
+        <<: *miami_earth_station
+        added_loss: 3
+      - <<: *ses_17_ct
+        <<: *miami_earth_station
+        added_loss: 3
+      - <<: *ses_17_ct
+        <<: *kansas_earth_station
+        added_loss: 3
+      - <<: *viasat_iom_gw
+        <<: *miami_earth_station
+        added_loss: 3
+      - <<: *viasat_iom_gw
+        <<: *las_vegas_earth_station
+        added_loss: 3
+      - <<: *viasat_iom_ct
+        <<: *miami_earth_station
+        added_loss: 3
+      - <<: *viasat_iom_ct
+        <<: *las_vegas_earth_station
+        added_loss: 3
