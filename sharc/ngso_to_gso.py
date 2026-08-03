@@ -403,7 +403,7 @@ def run_simulation(
             Mo=p.initial_mean_anomaly,
             # IGNORE THIS
             model_time_as_random_variable=False,
-            t_min=0, t_max=0,
+            t_min=0, t_max=-1,
         )
         for p in par.ngso.orbits
     ]
@@ -423,6 +423,7 @@ def run_simulation(
         for s in child_seed_seqs
     ])  # cheap — just n_steps floats
     generic_rng = np.random.default_rng(par.seed)
+    # orbital_rng = np.random.RandomState(par.seed)
 
     # Tune this to your available RAM. At 3232 sats:
     #   chunk=1000  → ~75MB for orbit positions
@@ -450,6 +451,8 @@ def run_simulation(
 
         # --- Batch orbit propagation for this chunk ---
         all_orbit_positions = [
+            # testing random positions
+            # o.get_orbit_positions_random(orbital_rng, len(chunk_timeline))
             o.get_orbit_positions_time_instant(chunk_timeline)
             for o in orbit_models
         ]
@@ -482,15 +485,21 @@ def run_simulation(
                 if par.ngso.gso_protection_avoidance_angle is not None:
                     elevation = elevation[off_axis > par.ngso.gso_protection_avoidance_angle]
                     off_axis = off_axis[off_axis > par.ngso.gso_protection_avoidance_angle]
-                # selected = np.argsort(off_axis)[:par.ngso.n_co_channel]
-                # selected = np.argsort(-elevation)[:par.ngso.n_co_channel]
-                n = min(par.ngso.n_co_channel, len(off_axis))
-                selected = generic_rng.choice(
-                    len(off_axis),
-                    size=n,
-                    replace=False
-                )
+
+                if par.selection_strategy == "RAND":
+                    n = min(par.ngso.n_co_channel, len(off_axis))
+                    selected = generic_rng.choice(
+                        len(off_axis),
+                        size=n,
+                        replace=False
+                    )
+                elif par.selection_strategy == "MAX_ELEV":
+                    selected = np.argsort(-elevation)[:par.ngso.n_co_channel]
+                elif par.selection_strategy == "WC":
+                    selected = np.argsort(off_axis)[:par.ngso.n_co_channel]
+
                 selected_off_axis = off_axis[selected]
+
                 for ctx in ctx_group:
                     ant_rx_gain = es_ant_gain_1428(
                         selected_off_axis,
@@ -511,18 +520,18 @@ def run_simulation(
                         par.ngso.tx_model.pfd_at_ref_bandwidth_dBW_m2
                         + equivalent_rx_gain - ctx.par.peak_rx_antenna_gain
                     )
-                    results_writer.add_results(
-                        {
-                            "off_axis": selected_off_axis,
-                            "ant_rx_gain": ant_rx_gain,
-                        }, f"gso_per_ngso_per_iteration{STR_SEPARATOR}{ctx.label}"
-                    )
-                    results_writer.add_results(
-                        {
-                            "equivalent_rx_gain": equivalent_rx_gain,
-                            "epfd_from_pfd": epfd_from_pfd,
-                        }, f"extra_info{STR_SEPARATOR}{ctx.label}"
-                    )
+                    # results_writer.add_results(
+                    #     {
+                    #         "off_axis": selected_off_axis,
+                    #         "ant_rx_gain": ant_rx_gain,
+                    #     }, f"gso_per_ngso_per_iteration{STR_SEPARATOR}{ctx.label}"
+                    # )
+                    # results_writer.add_results(
+                    #     {
+                    #         "equivalent_rx_gain": equivalent_rx_gain,
+                    #         "epfd_from_pfd": epfd_from_pfd,
+                    #     }, f"extra_info{STR_SEPARATOR}{ctx.label}"
+                    # )
 
                     if not already_plotted and DEBUG:
                         already_plotted = True

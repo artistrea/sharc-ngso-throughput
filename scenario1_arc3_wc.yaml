@@ -138,22 +138,25 @@ gso_links_helpers:
 
 
 ngso2gso:
-    scenario_name: scenario4_last_sta
+    version: 2
+    scenario_name: wc_scenario1_arc5
     seed: 1253
     delta_t_s: 1.0
     min_t_s: 0.0
-    # max_t_s: 100000.0
-    max_t_s: 1000000.0
+    max_t_s: 100000.0
+    # max_t_s: 1000000.0
     batch_size: 1000
     ref_bandwidth_Hz: 1000000
     minimum_elevation: 35.0
+    selection_strategy: WC
 
     ngso:
-      gso_protection_avoidance_angle: 6.0
-      n_co_channel: 4  # Nco
+      gso_protection_avoidance_angle: 5.0
+      n_co_channel: 1  # Nco
       tx_model:
         model: CONSTANT_PFD_AT_GND
-        pfd_at_ref_bandwidth_dBW_m2: -113.0
+        # pfd_at_ref_bandwidth_dBW_m2: -129.5
+        pfd_at_ref_bandwidth_dBW_m2: -115.0
       orbits:
         # NOTE: from USASAT-NGSO-8A
         # NOTE: the phasing_deg parameter is known to be wrong
@@ -190,51 +193,48 @@ ngso2gso:
           phasing_deg: 16.615  # NOTE: there are more digits than .61, that is known
 
     gso_links:
-      # - <<: *directv_15_gw
-      #   <<: *miami_earth_station
-      #   added_loss: 3
-      # - <<: *jupiter_97w_gw
-      #   <<: *miami_earth_station
-      #   added_loss: 3
-      # - <<: *jupiter_97w_ct
-      #   <<: *miami_earth_station
-      #   added_loss: 3
-      # - <<: *jupiter_97w_ct
-      #   <<: *las_vegas_earth_station
-      #   added_loss: 3
-      # - <<: *galaxy_30_gw
-      #   <<: *miami_earth_station
-      #   added_loss: 3
-      # - <<: *galaxy_30_ct
-      #   <<: *miami_earth_station
-      #   added_loss: 3
-      # - <<: *galaxy_30_ct
-      #   <<: *las_vegas_earth_station
-      #   added_loss: 3
-      # - <<: *ses_15_gw
-      #   <<: *kansas_earth_station
-      #   added_loss: 3
+      - <<: *directv_15_gw
+        <<: *miami_earth_station
+        added_loss: 3
+      - <<: *jupiter_97w_gw
+        <<: *miami_earth_station
+        added_loss: 3
+      - <<: *jupiter_97w_ct
+        <<: *miami_earth_station
+        added_loss: 3
+      - <<: *jupiter_97w_ct
+        <<: *las_vegas_earth_station
+        added_loss: 3
+      - <<: *galaxy_30_gw
+        <<: *miami_earth_station
+        added_loss: 3
+      - <<: *galaxy_30_ct
+        <<: *miami_earth_station
+        added_loss: 3
+      - <<: *galaxy_30_ct
+        <<: *las_vegas_earth_station
+        added_loss: 3
       - <<: *ses_15_gw
         <<: *miami_earth_station
         added_loss: 3
-      # - <<: *ses_17_gw
-      #   <<: *miami_earth_station
-      #   added_loss: 3
-      # - <<: *ses_17_ct
-      #   <<: *miami_earth_station
-      #   added_loss: 3
+      - <<: *ses_15_gw
+        <<: *las_vegas_earth_station
+        added_loss: 3
+      - <<: *ses_17_gw
+        <<: *miami_earth_station
+        added_loss: 3
+      - <<: *ses_17_ct
+        <<: *miami_earth_station
+        added_loss: 3
       - <<: *ses_17_ct
         <<: *las_vegas_earth_station
         added_loss: 3
-      # - <<: *viasat_iom_gw
-      #   <<: *miami_earth_station
-      #   added_loss: 3
-      # - <<: *viasat_iom_gw
-      #   <<: *las_vegas_earth_station
-      #   added_loss: 3
-      # - <<: *viasat_iom_ct
-      #   <<: *miami_earth_station
-      #   added_loss: 3
-      # - <<: *viasat_iom_ct
-      #   <<: *las_vegas_earth_station
-      #   added_loss: 3
+      - <<: *viasat_iom_gw
+        <<: *miami_earth_station
+        added_loss: 3
+      - <<: *viasat_iom_ct
+        <<: *miami_earth_station
+        added_loss: 3
+      - <<: *viasat_iom_ct
+        <<: *las_vegas_earth_station
+        added_loss: 3

@@ -138,8 +138,9 @@ gso_links_helpers:
 
 
 ngso2gso:
-    scenario_name: scenario3
-    seed: 1253
+    version: 2.0
+    scenario_name: scenario3_again
+    seed: 125
     delta_t_s: 1.0
     min_t_s: 0.0
     # max_t_s: 100000.0
@@ -147,6 +148,7 @@ ngso2gso:
     batch_size: 700
     ref_bandwidth_Hz: 1000000
     minimum_elevation: 35.0
+    selection_strategy: RAND
 
     ngso:
       gso_protection_avoidance_angle: 2.0

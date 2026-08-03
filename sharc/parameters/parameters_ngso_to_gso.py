@@ -1,4 +1,6 @@
 from dataclasses import dataclass, field
+import typing
+
 from sharc.parameters.parameters_base import ParametersBase
 from sharc.parameters.parameters_orbit import ParametersOrbit
 
@@ -56,9 +58,6 @@ class ParametersGSO(ParametersBase):
 
     # Human-readable label — used in results filenames / plot legends.
     label: str = None
-    # DO NOT SET. This gets updated automatically to include both the gso link
-    # label and the earth station label
-    full_name: str = None
 
     # --- Satellite ---
     orbital_slot_deg: float = None
@@ -83,6 +82,19 @@ class ParametersGSO(ParametersBase):
 
     added_loss: float = 0.0
 
+    @property
+    def full_name(self) -> str | None:
+        if None in [self.label, self.earth_station.label]:
+            return None
+
+        return ParametersGSO._get_full_name(
+            self.label, self.earth_station.label
+        )
+
+    @staticmethod
+    def _get_full_name(label, earth_station_label):
+        return label + STR_SEPARATOR + earth_station_label
+
     def validate(self, ctx: str):
         if self.label is None:
             raise ValueError(f"{ctx}.label is not set")
@@ -98,13 +110,6 @@ class ParametersGSO(ParametersBase):
                 f"{ctx}.station_type must be 'GW' or 'CT', got '{self.station_type}'."
             )
         super().validate(ctx)
-
-        self.full_name = self.label + STR_SEPARATOR + self.earth_station.label
-        # print("#######################")
-        # print("self.full_name", self.full_name)
-        # print("D =", self.rx_antenna_size_m)
-        # print("g_max =", self.peak_rx_antenna_gain)
-        # print()
 
 
 # ---------------------------------------------------------------------------
@@ -188,6 +193,13 @@ class ParametersNGSO2GSO(ParametersBase):
     section_name: str = "ngso2gso"
     nested_parameters_enabled: bool = True
     scenario_name: str = None
+    version = 1
+
+    selection_strategy: (
+        typing.Literal["RAND"]
+        | typing.Literal["MAX_ELEV"]
+        | typing.Literal["WC"]
+    ) = None
 
     # --- Simulation control ---
     seed: int = 1251
@@ -204,7 +216,9 @@ class ParametersNGSO2GSO(ParametersBase):
 
     # List allows multiple GSO victims in one run.
     # load_subparameters handles list[ParametersBase] recursively already.
-    gso_links: list = field(default_factory=lambda: [ParametersGSO()])
+    gso_links: list[ParametersGSO] = field(
+        default_factory=lambda: [ParametersGSO()]
+    )
 
     def validate(self, ctx: str):
         if self.delta_t_s <= 0:
@@ -238,5 +252,18 @@ class ParametersNGSO2GSO(ParametersBase):
                     "More than one GSO Earth Station has the same label"
                 )
             labels_set.add(gso.full_name)
+
+        if self.version < 2:
+            if self.selection_strategy is not None:
+                raise ValueError("AOPASA")
+
+            self.selection_strategy = "RAND"
+
+        if self.selection_strategy not in [
+            "RAND", "MAX_ELEV", "WC"
+        ]:
+            raise ValueError(
+                f"{ctx}.selection_strategy is '{self.selection_strategy}'"
+            )
 
         super().validate(ctx)
