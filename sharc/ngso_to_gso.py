@@ -233,7 +233,10 @@ class GSOLinkContext:
     rain_inv_ccdf: object       # callable: p -> attenuation [dB]
 
 
-def _build_gso_link_context(gso_par: ParametersGSO) -> GSOLinkContext:
+def _build_gso_link_context(
+    gso_par: ParametersGSO,
+    coord: CoordinateSystem | None = None
+) -> GSOLinkContext:
     """
     Precompute everything that is static for a given GSO link.
     Mirrors the module-level setup from the original script, but scoped
@@ -247,14 +250,28 @@ def _build_gso_link_context(gso_par: ParametersGSO) -> GSOLinkContext:
     if alt_m is None:
         alt_m = itur.topographic_altitude(lat, lon).to(itur.u.m).value
 
-    global_reference_frame = ENUReferenceFrame(lat=lat, lon=lon, alt=alt_m)
+    if coord is not None:
+        global_coord_sys = coord
+        global_reference_frame = ENUReferenceFrame(
+            lat=coord.ref_lat, lon=coord.ref_long, alt=coord.ref_alt
+        )
+    else:
+        global_coord_sys = CoordinateSystem()
+        global_coord_sys.set_reference(
+            lat, lon, alt_m
+        )
+        global_reference_frame = ENUReferenceFrame(
+            lat=lat, lon=lon, alt=alt_m
+        )
 
-    global_coord_sys = CoordinateSystem()
-    global_coord_sys.set_reference(lat, lon, alt_m)
+    local_reference_frame = ENUReferenceFrame(
+        lat=lat, lon=lon, alt=alt_m
+    )
 
     # Earth station geometry (origin of ENU frame)
-    es_geom = SimulatorGeometry(1, False, global_reference_frame)
-    es_geom.set_global_coords(
+    es_geom = SimulatorGeometry(1, True, global_reference_frame)
+    es_geom.set_local_reference_frame(local_reference_frame)
+    es_geom.set_local_coords(
         np.array([0.]), np.array([0.]), np.array([0.])
     )
 

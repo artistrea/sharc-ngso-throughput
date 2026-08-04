@@ -109,56 +109,28 @@ def main():
     )
 
     batches = [
-        # {
-        #     "to_process": [
-        #         {
-        #             "t": "link",
-        #             "res_name": "max_elev_scenario2",
-        #             "link": "Galaxy 30 CT",
-        #             "place": "Las Vegas",
-        #             "add_to_label": ", (Max. Elev. Selection)"
-        #         },
-        #         {
-        #             "t": "link",
-        #             "res_name": "rand_scenario2",
-        #             "link": "Galaxy 30 CT",
-        #             "place": "Las Vegas",
-        #             "add_to_label": ", (Rand. Selection)"
-        #         },
-        #         {
-        #             "t": "link",
-        #             "res_name": "worst_case_scenario2",
-        #             "link": "Galaxy 30 CT",
-        #             "place": "Las Vegas",
-        #             "add_to_label": ", (Worst Case Selection)"
-        #         },
-        #         {
-        #             "t": "lower-mask",
-        #         },
-        #     ],
-        #     "outname": "lower-epfd.png"
-        # },
         {
             "to_process": [
                 {
                     "t": "link",
-                    "res_name": "max_elev_scenario1_arc10",
+                    "res_name": "max_elev_scenario2",
                     "link": "Jupiter 97W CT",
-                    "place": "Miami",
+                    "place": "Las Vegas",
                     "add_to_label": ", (Max. Elev. Selection)"
                 },
                 {
                     "t": "link",
-                    "res_name": "rand_scenario1_arc10",
+                    "res_name": "rand_scenario2",
                     "link": "Jupiter 97W CT",
-                    "place": "Miami",
+                    "place": "Las Vegas",
                     "add_to_label": ", (Rand. Selection)"
                 },
                 {
                     "t": "link",
-                    "res_name": "wc_scenario1_arc10",
+                    # "res_name": "wc_scenario2",
+                    "res_name": "worst_case_scenario2",
                     "link": "Jupiter 97W CT",
-                    "place": "Miami",
+                    "place": "Las Vegas",
                     "add_to_label": ", (Worst Case Selection)"
                 },
                 {
@@ -168,8 +140,40 @@ def main():
                     "t": "lower-mask",
                 },
             ],
-            "outname": "scenario1-arc10.png"
-        }
+            "outname": "scenario2-modified-epfd.png"
+        },
+        # {
+        #     "to_process": [
+        #         {
+        #             "t": "link",
+        #             "res_name": "max_elev_scenario1_arc10",
+        #             "link": "Jupiter 97W CT",
+        #             "place": "Miami",
+        #             "add_to_label": ", (Max. Elev. Selection)"
+        #         },
+        #         {
+        #             "t": "link",
+        #             "res_name": "rand_scenario1_arc10",
+        #             "link": "Jupiter 97W CT",
+        #             "place": "Miami",
+        #             "add_to_label": ", (Rand. Selection)"
+        #         },
+        #         {
+        #             "t": "link",
+        #             "res_name": "wc_scenario1_arc10",
+        #             "link": "Jupiter 97W CT",
+        #             "place": "Miami",
+        #             "add_to_label": ", (Worst Case Selection)"
+        #         },
+        #         {
+        #             "t": "upper-mask",
+        #         },
+        #         {
+        #             "t": "lower-mask",
+        #         },
+        #     ],
+        #     "outname": "scenario1-arc10.png"
+        # }
     ]
 
     for batch in batches:
