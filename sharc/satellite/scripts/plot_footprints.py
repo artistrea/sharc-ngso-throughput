@@ -246,25 +246,25 @@ def plot_fp(
 
     # Plot all satellites (red markers)
     print("adding sats")
-    fig.add_trace(go.Scatter3d(
-        x=mss_d2d_manager.geom.x_global / 1e3,
-        y=mss_d2d_manager.geom.y_global / 1e3,
-        z=mss_d2d_manager.geom.z_global / 1e3,
-        mode='markers',
-        marker=dict(size=2, color='red', opacity=0.5),
-        showlegend=False
-    ))
+    # fig.add_trace(go.Scatter3d(
+    #     x=mss_d2d_manager.geom.x_global / 1e3,
+    #     y=mss_d2d_manager.geom.y_global / 1e3,
+    #     z=mss_d2d_manager.geom.z_global / 1e3,
+    #     mode='markers',
+    #     marker=dict(size=2, color='red', opacity=0.5),
+    #     showlegend=False
+    # ))
 
     # Plot visible satellites (green markers)
     # print(visible_positions['x'][visible_positions['x'] > 0])
-    fig.add_trace(go.Scatter3d(
-        x=mss_d2d_manager.geom.x_global[mss_d2d_manager.active] / 1e3,
-        y=mss_d2d_manager.geom.y_global[mss_d2d_manager.active] / 1e3,
-        z=mss_d2d_manager.geom.z_global[mss_d2d_manager.active] / 1e3,
-        mode='markers',
-        marker=dict(size=3, color='green', opacity=0.8),
-        name="MSS D2D sat",
-    ))
+    # fig.add_trace(go.Scatter3d(
+    #     x=mss_d2d_manager.geom.x_global[mss_d2d_manager.active] / 1e3,
+    #     y=mss_d2d_manager.geom.y_global[mss_d2d_manager.active] / 1e3,
+    #     z=mss_d2d_manager.geom.z_global[mss_d2d_manager.active] / 1e3,
+    #     mode='markers',
+    #     marker=dict(size=3, color='green', opacity=0.8),
+    #     name="MSS D2D sat",
+    # ))
 
     fig.add_trace(go.Scatter3d(
         x=[0],
@@ -276,8 +276,8 @@ def plot_fp(
     ))
 
     polygons_lim = plot_mult_polygon(
-        # params.beam_positioning.service_grid.eligibility_polygon,
-        params.sat_is_active_if.lat_long_inside_country.filter_polygon,
+        params.beam_positioning.service_grid.grid_in_zone._polygon,
+        # params.sat_is_active_if.lat_long_inside_country.filter_polygon,
         coord_sys,
         True,
         2
@@ -295,8 +295,8 @@ def plot_fp(
         y=lim_y,
         z=lim_z,
         mode='lines',
-        line=dict(color='rgb(0, 255, 0)'),
-        name="Sat. active limits"
+        line=dict(color='rgb(255, 10, 10)', width=4),
+        name="Grid limits"
     ))
 
     if params.beam_positioning.type == "SERVICE_GRID" and show_service_grid_if_possible:
@@ -420,23 +420,55 @@ if __name__ == "__main__":
     params.propagate_parameters()
     params.validate("opa")
 
+    # coord_sys = CoordinateSystem()
+
+    # sys_lat = -14.5
+    # sys_long = -52
+    # sys_alt = 1200
+
+    # coord_sys.set_reference(
+    #     sys_lat, sys_long, sys_alt
+    # )
+
+    from pathlib import Path
+    from sharc.parameters.parameters import Parameters
+    param_file = Path(
+        "/home/artistreak/projects/Radio-Spectrum/server/last-output/mache/wp4c_oct_26_dc_mss_imt_to_bs/"
+        "output-again-sa2/output_wp4c_oct_26_dc_mss_imt_to_bs_0.5load_bs_bs.582MHz-960MHz.bandV.ISDB-T_channel_51_FIXED_mss_d2d_imt.698-960MHz.mss-dc.system3-525km_place_foz_2026-08-05_01/parameter_wp4c_oct_26_dc_mss_imt_to_bs_0.5load_bs_bs.582MHz-960MHz.bandV.ISDB-T_channel_51_FIXED_mss_d2d_imt.698-960MHz.mss-dc.system3-525km_place_foz.yaml"
+    ).resolve()
+    # param_file = Path(
+    #     "/home/artistreak/projects/Radio-Spectrum/server/last-output/mache/wp4c_oct_26_dc_mss_imt_to_bs"
+    #     "/output-again-sa/output_wp4c_oct_26_dc_mss_imt_to_bs_0.5load_bs_bs.582MHz-960MHz.bandV.ISDB-T_channel_51_FIXED_mss_d2d_imt.698-960MHz.mss-dc.system4-690km_place_foz_2026-08-05_01/parameter_wp4c_oct_26_dc_mss_imt_to_bs_0.5load_bs_bs.582MHz-960MHz.bandV.ISDB-T_channel_51_FIXED_mss_d2d_imt.698-960MHz.mss-dc.system4-690km_place_foz.yaml"
+    # ).resolve()
+    parameters = Parameters()
+    parameters.set_file_name(param_file)
+    parameters.read_params()
+    params = parameters.imt.topology.mss_dc
+    params.spectral_mask = parameters.imt.spectral_mask
+    params.frequency = parameters.imt.frequency
+    params.bandwidth = parameters.imt.bandwidth
+    params.spurious_emissions = parameters.imt.spurious_emissions
+    params.beams_load_factor = 0.1
+    params.antenna = parameters.imt.bs.antenna
+    params.bandwidth = parameters.imt.bandwidth
+    params.tx_power_density = 0.
+
     coord_sys = CoordinateSystem()
-
-    sys_lat = -14.5
-    sys_long = -52
-    sys_alt = 1200
-
     coord_sys.set_reference(
-        sys_lat, sys_long, sys_alt
+        parameters.imt.topology.central_latitude,
+        parameters.imt.topology.central_longitude,
+        parameters.imt.topology.central_altitude,
     )
 
     opts = [
         FootPrintOpts(
             seed=20,
+            resolution=1,
+            show_service_grid_if_possible=True
         ),
-        FootPrintOpts(
-            seed=22,
-        )
+        # FootPrintOpts(
+        #     seed=22,
+        # )
     ]
 
     for opt in opts:

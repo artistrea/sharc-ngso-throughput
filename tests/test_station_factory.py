@@ -246,13 +246,17 @@ class StationFactoryTest(unittest.TestCase):
 
         param.geometry.azimuth.type = "POINTING_AT_LAT_LONG_ALT"
         param.geometry.elevation.type = "POINTING_AT_LAT_LONG_ALT"
+        param.geometry.location.type = "FIXED"
+        param.geometry.location.fixed.lat_deg = -5
+        param.geometry.location.fixed.long_deg = 5
         param.geometry.pointing_at_lat = -5
         param.geometry.pointing_at_long = 5
         param.geometry.pointing_at_alt = 1200
 
         space_station = StationFactory.generate_single_space_station(param)
-
-        npt.assert_almost_equal(space_station.geom.get_off_axis_angle(center_of_earth.geom), 0, 5)
+        npt.assert_almost_equal(
+            space_station.geom.get_off_axis_angle(center_of_earth.geom), 0, 5
+        )
 
 
 if __name__ == '__main__':

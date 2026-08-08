@@ -1814,7 +1814,9 @@ class StationFactory(object):
         # repeated state (elevation and azimuth) inside multiple transceiver
         # implementation
         mss_d2d.antenna = np.empty(total_satellites, dtype=AntennaS1528Leo)
-        if params.antenna.pattern == "ITU-R-S.1528-LEO":
+        if params.antenna.pattern == "OMNI":
+            antenna_pattern = AntennaOmni(params.antenna.gain)
+        elif params.antenna.pattern == "ITU-R-S.1528-LEO":
             antenna_pattern = AntennaS1528Leo(params.antenna.itu_r_s_1528)
         elif params.antenna.pattern == "ITU-R-S.1528-Section1.2":
             antenna_pattern = AntennaS1528(params.antenna.itu_r_s_1528)
