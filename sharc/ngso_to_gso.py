@@ -21,7 +21,7 @@ import numpy as np
 from tqdm import tqdm
 import csv
 
-RESULTS_DIR = "./results-ngso"
+RESULTS_DIR = "./scenarios/results"
 RESULTS_JSON_RESUME_PATH = Path(f"{RESULTS_DIR}/results.json")
 
 DEBUG = False
@@ -93,21 +93,22 @@ class MockResultsWriter:
 
 class ResultsWriter:
     @staticmethod
-    def form_results_path(directory: str | Path, timestamp: str):
-        return Path(directory) / timestamp
+    def form_results_path(directory: str | Path, timestamp: str, scenario_name: str):
+        return Path(directory) / f"{timestamp}/{scenario_name}"
 
     def __init__(
         self,
         directory: str | Path,
         inp_file: str | Path,
-        continue_from_timestamp: str | None = None
+        scenario_name: str,
+        continue_from_timestamp: str | None = None,
     ):
         if continue_from_timestamp is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         else:
             timestamp = continue_from_timestamp
 
-        self.directory = ResultsWriter.form_results_path(directory, timestamp)
+        self.directory = ResultsWriter.form_results_path(directory, timestamp, scenario_name)
 
         if continue_from_timestamp is None:
             self._setup_new_dir(inp_file)
@@ -592,6 +593,7 @@ def create_results_writer(
 
     results_writer = None
     drops_ran = 0
+    drops_start = 0
 
     if latest_file_params_text == params_text:
         csvs_at_dir = list(latest_result_dir.glob("gso_per_iteration*.csv"))
@@ -602,7 +604,8 @@ def create_results_writer(
 
             if drops_ran != drops_should_run:
                 dt_str = str(latest_result_dir.name)
-                dt = datetime.strptime(dt_str, "%Y%m%d_%H%M%S")
+                timestamp = "_".join(dt_str.split("_")[-2:])
+                dt = datetime.strptime(timestamp, "%Y%m%d_%H%M%S")
                 print(
                     "It seems there already a previous simulation "
                     "with the exact same parameters, started on \n"
@@ -614,24 +617,26 @@ def create_results_writer(
                     res = res.upper()
 
                 if res == "Y":
+                    yyyyyyyyyyy = drops_ran
                     results_writer = ResultsWriter(
-                        f"{RESULTS_DIR}/", param_file, dt_str
+                        f"{RESULTS_DIR}/", param_file, par.scenario_name,
+                        timestamp
                     )
 
     if results_writer is None:
         results_writer = ResultsWriter(
-            f"{RESULTS_DIR}/", param_file,
+            f"{RESULTS_DIR}/", param_file, par.scenario_name,
         )
 
     results_json_resume.setdefault(
         par.scenario_name, {}
     )['latest_res_dir'] = str(results_writer.directory)
 
-    RESULTS_JSON_RESUME_PATH.write_text(json.dumps(
-        results_json_resume, sort_keys=True, indent=4
-    ))
+    # RESULTS_JSON_RESUME_PATH.write_text(json.dumps(
+    #     results_json_resume, sort_keys=True, indent=4
+    # ))
 
-    return results_writer, drops_ran
+    return results_writer, drops_start
 
 
 def main():
