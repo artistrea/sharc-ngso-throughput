@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -6,8 +7,30 @@ from sharc.parameters.parameters_ngso_to_gso import (
     ParametersNGSO2GSO, STR_SEPARATOR
 )
 
+SHARC_ROOT = Path(__file__).parent.parent
 RESULTS_DIR = Path(__file__).parent / "results"
 RESULTS_JSON_RESUME_PATH = RESULTS_DIR / "results.json"
+
+PROTECTION_PARAMS = {
+    "RAND": [
+        (2, 2), (3, 2), (4, 2),
+        (2, 4), (3, 4), (4, 4),
+        (2, 6), (3, 6), (4, 6),
+        (2, 8), (3, 8), (4, 8),
+    ],
+    "WC": [
+        (5, 2), (6, 2), (7, 2),
+        (5, 4), (6, 4), (7, 4),
+        (5, 6), (6, 6), (7, 6),
+        (5, 8), (6, 8), (7, 8),
+    ],
+    "MAX_ELEV": [
+        (1, 2), (2, 2), (3, 2),
+        (1, 4), (2, 4), (3, 4),
+        (1, 6), (2, 6), (3, 6),
+        (1, 8), (2, 8), (3, 8),
+    ],
+}
 
 
 def load_link_data(
@@ -17,12 +40,12 @@ def load_link_data(
     link_data = {}
     for gso_par in par.gso_links:
         label = gso_par.full_name
-        filename = f"gso_per_iteration{STR_SEPARATOR}{label}.csv"
+        filename = f"gso_per_iteration{STR_SEPARATOR}{label}.parquet"
         path = results_dir / filename
         if not path.exists():
             print(f"[WARN] Missing results file: {path}")
             continue
-        link_data[label] = pd.read_csv(path)
+        link_data[label] = pd.read_parquet(path)
     return link_data
 
 
@@ -64,6 +87,27 @@ def spectral_efficiency(gamma_db: np.ndarray) -> np.ndarray:
 
 
 def main():
+    results_json_resume = {}
+
+    last_tstamp = None
+    maybe_included_dirs = reversed(sorted(RESULTS_DIR.iterdir()))
+    for d in reversed(sorted(RESULTS_DIR.iterdir())):
+        try:
+            timestamp: datetime.datetime = datetime.strptime(str(d.name), "%Y%m%d_%H%M%S")
+        except Exception:
+            continue
+
+        if last_tstamp is not None:
+            if (last_tstamp - timestamp) > timedelta(seconds=10):
+                # assume they're too old of a run
+                break
+        last_tstamp = timestamp
+
+        for res_dir in d.iterdir():
+            results_json_resume[res_dir.name] = {
+                "latest_res_dir": "./" + str(res_dir.relative_to(SHARC_ROOT))
+            }
+
     data = {}
     for k, v in results_json_resume.items():
         results_dir = v["latest_res_dir"]
@@ -98,7 +142,7 @@ def main():
             ser = float(np.mean(eta_cn))
             seri = float(np.mean(eta_cni))
 
-            rel  = (
+            rel = (
                 (ser - seri) / ser * 100.0
                 if (np.isfinite(ser) and ser > 0)
                 else float("nan")
@@ -108,7 +152,49 @@ def main():
 
         data[k] = max_rel
 
-    print(data)
+    selec_grouping = {}
+    for selection_strategy in ["RAND", "WC", "MAX_ELEV"]:
+        arc_avoid_grouping = {}
+        for arc_avoid, n_co in PROTECTION_PARAMS[selection_strategy]:
+            scenario_name = f"{selection_strategy.lower()}_{arc_avoid}arc_avoid_{n_co}Nco"
+            if scenario_name in data:
+                arc_avoid_grouping.setdefault(arc_avoid, {})[n_co] = data[scenario_name]
+        selec_grouping[selection_strategy] = arc_avoid_grouping
+    print(selec_grouping)
+
+    # TODO:
+    # one plot per scenario
+    # one line per arc avoidance angle
+    # n_co sweep (x axis)
+    # maximum throughput degradation [%] (y axis)
+    import matplotlib.pyplot as plt
+
+    for selection_strategy, arc_avoid_grouping in selec_grouping.items():
+        if not arc_avoid_grouping:
+            continue
+
+        plt.figure()
+
+        for arc_avoid, n_co_grouping in sorted(arc_avoid_grouping.items()):
+            n_co_values = sorted(n_co_grouping)
+            degradation_values = [
+                n_co_grouping[n_co] for n_co in n_co_values
+            ]
+
+            plt.plot(
+                n_co_values,
+                degradation_values,
+                marker="o",
+                label=f"{arc_avoid}°",
+            )
+
+        plt.xlabel("$N_{co}$")
+        plt.ylabel("Maximum throughput degradation [%]")
+        plt.title(f"{selection_strategy} satellite selection")
+        plt.grid(True)
+        plt.legend(title="Arc avoidance")
+        plt.tight_layout()
+        plt.show()
 
 
 if __name__ == "__main__":

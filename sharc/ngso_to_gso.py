@@ -1,4 +1,7 @@
 import itur
+import pyarrow as pa
+import pyarrow.parquet as pq
+import pandas as pd
 import json
 import shutil
 import argparse
@@ -93,7 +96,11 @@ class MockResultsWriter:
 
 class ResultsWriter:
     @staticmethod
-    def form_results_path(directory: str | Path, timestamp: str, scenario_name: str):
+    def form_results_path(
+        directory: str | Path,
+        timestamp: str,
+        scenario_name: str,
+    ):
         return Path(directory) / f"{timestamp}/{scenario_name}"
 
     def __init__(
@@ -108,16 +115,38 @@ class ResultsWriter:
         else:
             timestamp = continue_from_timestamp
 
-        self.directory = ResultsWriter.form_results_path(directory, timestamp, scenario_name)
+        self.directory = ResultsWriter.form_results_path(
+            directory,
+            timestamp,
+            scenario_name,
+        )
 
         if continue_from_timestamp is None:
             self._setup_new_dir(inp_file)
         else:
             self._check_existing_dir()
 
+        # Buffered results:
+        #
+        # {
+        #     "gso_per_iteration|link_a": {
+        #         "c": [...],
+        #         "cn": [...],
+        #         "cni": [...],
+        #     },
+        #     "gso_per_iteration|link_b": {
+        #         "c": [...],
+        #         "cn": [...],
+        #         "cni": [...],
+        #     },
+        # }
         self.res = {}
-        self.files = {}
+
+        # One ParquetWriter per attr_name.
         self.writers = {}
+
+        # One Arrow schema per attr_name.
+        self.schemas = {}
 
     def _check_existing_dir(self):
         if not self.directory.exists():
@@ -133,8 +162,9 @@ class ResultsWriter:
         shutil.copy2(inp_file, self.directory / inp_file.name)
 
     def add_results(self, new_res: dict, attr_name: str):
-        # Normalize everything to lists
+        # Normalize everything to lists.
         normalized = {}
+
         for k, v in new_res.items():
             if isinstance(v, np.ndarray):
                 if v.size == 1:
@@ -157,7 +187,9 @@ class ResultsWriter:
             any(s not in provided_keys for s in saved_keys)
             or any(p not in saved_keys for p in provided_keys)
         ):
-            raise ValueError("You must maintain a specific runtime schema.")
+            raise ValueError(
+                "You must maintain a specific runtime schema."
+            )
 
         for k in provided_keys:
             self.res[attr_name][k].extend(normalized[k])
@@ -165,47 +197,62 @@ class ResultsWriter:
     def flush_results(self):
         for attr_name, data in self.res.items():
             lengths = {len(v) for v in data.values()}
+
             if len(lengths) != 1:
-                raise ValueError(f"Inconsistent column lengths for '{attr_name}'.")
+                raise ValueError(
+                    f"Inconsistent column lengths for '{attr_name}'."
+                )
 
             if not data:
                 continue
 
             n_rows = len(next(iter(data.values())))
+
             if n_rows == 0:
                 continue
 
-            # Open file lazily
-            if attr_name not in self.files:
-                path = self.directory / f"{attr_name}.csv"
-                is_new = not path.exists()
+            # Open Parquet file lazily.
+            if attr_name not in self.writers:
+                path = self.directory / f"{attr_name}.parquet"
 
-                f = open(path, "a", newline="")
-                writer = csv.writer(f)
+                df = pd.DataFrame(data)
 
-                if is_new:
-                    writer.writerow(data.keys())
+                table = pa.Table.from_pandas(
+                    df,
+                    preserve_index=False,
+                )
 
-                self.files[attr_name] = f
-                self.writers[attr_name] = writer
+                self.schemas[attr_name] = table.schema
 
-            writer = self.writers[attr_name]
+                self.writers[attr_name] = pq.ParquetWriter(
+                    path,
+                    schema=self.schemas[attr_name],
+                    compression="zstd",
+                )
 
-            for row in zip(*data.values()):
-                writer.writerow(row)
+            # Convert this buffered batch using the established schema.
+            df = pd.DataFrame(data)
 
-            self.files[attr_name].flush()
+            table = pa.Table.from_pandas(
+                df,
+                schema=self.schemas[attr_name],
+                preserve_index=False,
+            )
 
-            # Clear buffered results while preserving schema
+            self.writers[attr_name].write_table(table)
+
+            # Clear buffered results while preserving schema.
             for k in data:
                 data[k].clear()
 
     def close(self):
-        for f in self.files.values():
-            f.close()
+        self.flush_results()
 
-        self.files.clear()
+        for writer in self.writers.values():
+            writer.close()
+
         self.writers.clear()
+        self.schemas.clear()
 
 
 @dataclass
