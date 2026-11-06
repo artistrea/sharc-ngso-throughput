@@ -8,7 +8,7 @@ import argparse
 from sharc.satellite.scripts.plot_globe import plot_globe_with_borders
 from sharc.p618 import rain_attenuation_inv_ccdf
 from sharc.parameters.parameters_ngso_to_gso import (
-    ParametersNGSO2GSO, ParametersGSO, STR_SEPARATOR
+    ParametersNGSO2GSO, ParametersGSO, ParametersNGSO, STR_SEPARATOR
 )
 from datetime import datetime
 from pathlib import Path
@@ -404,16 +404,48 @@ def _group_contexts_by_earth_station(
     return groups
 
 
+def _lin_sum_db(values_db) -> float:
+    """Power sum of dB values. Empty input / all -inf gives -inf."""
+    values_db = np.asarray(values_db, dtype=float)
+    with np.errstate(divide="ignore"):
+        return float(10 * np.log10(np.sum(10 ** (values_db / 10))))
+
+
+def _compute_system_interference(
+    ctx: GSOLinkContext,
+    sys: ParametersNGSO,
+    selected_off_axis: np.ndarray,
+    rain_att: float,
+    overlap_db: float,
+) -> float:
+    """
+    Interference power [dBW in ref bandwidth] from one NGSO system's
+    selected satellites into one GSO link, including band overlap.
+    """
+    tx = sys.tx_model
+    if tx.model != "CONSTANT_PFD_AT_GND":
+        raise ValueError(f"Unsupported TX model: {tx.model}")
+
+    ant_rx_gain = es_ant_gain_1428(
+        selected_off_axis,
+        ctx.par.peak_rx_antenna_gain,
+        ctx.es_rx_ant_d_lmbda,
+    )
+    interf_pow_per_sat = (
+        tx.pfd_at_ref_bandwidth_dBW_m2
+        + 10 * np.log10(ctx.lmbda**2 / (4 * np.pi))
+        + ant_rx_gain - rain_att + overlap_db
+    )
+    return _lin_sum_db(interf_pow_per_sat)
+
+
 def _compute_gso_link_metrics(
     ctx: GSOLinkContext,
-    off_axis: np.ndarray,
-    selected: np.ndarray,
-    ant_rx_gain: np.ndarray,
+    interf_pow_per_system: dict[str, float],
     rain_att: float,            # scalar for this time step, precomputed by caller
     par: ParametersNGSO2GSO,
 ) -> dict:
     gso_par = ctx.par
-    tx = par.ngso.tx_model
 
     carrier_pow_dl_per_mhz = (
         gso_par.eirp_dBW_per_carrier - 10 * np.log10(gso_par.bandwidth_MHz)
@@ -421,17 +453,8 @@ def _compute_gso_link_metrics(
         - ctx.fspl_dB - rain_att
     )
 
-    if tx.model == "CONSTANT_PFD_AT_GND":
-        # NOTE: sum power before subtracting rain attenuation
-        # because of numpy shape. Should give same result
-        interf_pow_per_sat = (
-            tx.pfd_at_ref_bandwidth_dBW_m2
-            + 10 * np.log10(ctx.lmbda**2 / (4 * np.pi))
-            + ant_rx_gain - rain_att
-        )
-        interf_pow = 10 * np.log10(np.sum(10 ** (interf_pow_per_sat / 10)))
-    else:
-        raise ValueError(f"Unsupported TX model: {tx.model}")
+    # Aggregate interference from all NGSO systems
+    interf_pow = _lin_sum_db(list(interf_pow_per_system.values()))
 
     noise_density = (
         10 * np.log10(BOLTZMANN_CONSTANT)
@@ -444,13 +467,50 @@ def _compute_gso_link_metrics(
     cni = carrier_pow_dl_per_mhz - 10 * np.log10(
         10 ** (noise_pow / 10) + 10 ** (interf_pow / 10)
     )
-    epfd = (
-        interf_pow - gso_par.peak_rx_antenna_gain
-        + 10 * np.log10((4 * np.pi) / ctx.lmbda**2)
-    )
 
-    return {"c": carrier_pow_dl_per_mhz, "cn": cn, "cni": cni,
-            "i": interf_pow, "epfd": epfd, "gso_rain_att": rain_att}
+    def i_to_epfd(i):
+        return (
+            i - gso_par.peak_rx_antenna_gain
+            + 10 * np.log10((4 * np.pi) / ctx.lmbda**2)
+        )
+
+    metrics = {"c": carrier_pow_dl_per_mhz, "cn": cn, "cni": cni,
+               "i": interf_pow, "epfd": i_to_epfd(interf_pow),
+               "gso_rain_att": rain_att}
+    for sys_label, i_sys in interf_pow_per_system.items():
+        metrics[f"i{STR_SEPARATOR}{sys_label}"] = i_sys
+        metrics[f"epfd{STR_SEPARATOR}{sys_label}"] = i_to_epfd(i_sys)
+
+    return metrics
+
+
+def _select_satellites(
+    sys: ParametersNGSO,
+    off_axis: np.ndarray,
+    elevation: np.ndarray,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """
+    Apply the system's visibility / GSO arc avoidance filters and pick
+    its n_co_channel satellites. Returns the selected off-axis angles.
+    """
+    visible = elevation > sys.minimum_elevation
+    if sys.gso_protection_avoidance_angle is not None:
+        visible &= off_axis > sys.gso_protection_avoidance_angle
+    off_axis = off_axis[visible]
+    elevation = elevation[visible]
+
+    if sys.selection_strategy == "RAND":
+        n = min(sys.n_co_channel, len(off_axis))
+        selected = rng.choice(len(off_axis), size=n, replace=False)
+    elif sys.selection_strategy == "MAX_ELEV":
+        selected = np.argsort(-elevation)[:sys.n_co_channel]
+    elif sys.selection_strategy == "WC":
+        selected = np.argsort(off_axis)[:sys.n_co_channel]
+    else:
+        raise ValueError(f"Unknown selection strategy {sys.selection_strategy}")
+
+    return off_axis[selected]
 
 
 def run_simulation(
@@ -459,23 +519,40 @@ def run_simulation(
     par_file: Path = None,
     start_from_drop=0,
 ):
-    orbit_models = [
-        OrbitModel(
-            Nsp=p.sats_per_plane, Np=p.n_planes,
-            phasing=p.phasing_deg, long_asc=p.long_asc_deg,
-            omega=p.omega_deg, delta=p.inclination_deg,
-            hp=p.perigee_alt_km, ha=p.apogee_alt_km,
-            Mo=p.initial_mean_anomaly,
-            # IGNORE THIS
-            model_time_as_random_variable=False,
-            t_min=0, t_max=-1,
-        )
-        for p in par.ngso.orbits
+    # One list of orbit models per NGSO system
+    orbit_models_per_sys = [
+        [
+            OrbitModel(
+                Nsp=p.sats_per_plane, Np=p.n_planes,
+                phasing=p.phasing_deg, long_asc=p.long_asc_deg,
+                omega=p.omega_deg, delta=p.inclination_deg,
+                hp=p.perigee_alt_km, ha=p.apogee_alt_km,
+                Mo=p.initial_mean_anomaly,
+                # IGNORE THIS
+                model_time_as_random_variable=False,
+                t_min=0, t_max=-1,
+            )
+            for p in sys.orbits
+        ]
+        for sys in par.ngso_systems
     ]
-    total_sats = sum(p.n_planes * p.sats_per_plane for p in par.ngso.orbits)
+    n_sats_per_sys = [
+        sum(p.n_planes * p.sats_per_plane for p in sys.orbits)
+        for sys in par.ngso_systems
+    ]
 
     gso_contexts = [_build_gso_link_context(gso_par) for gso_par in par.gso_links]
     es_groups = _group_contexts_by_earth_station(gso_contexts)
+
+    # Band overlap [dB] per (GSO link, NGSO system). -inf if no overlap.
+    overlap_db: dict[str, list[float]] = {}
+    for ctx in gso_contexts:
+        overlap_db[ctx.label] = []
+        for sys in par.ngso_systems:
+            ov = sys.band_overlap(ctx.par)
+            with np.errstate(divide="ignore"):
+                overlap_db[ctx.label].append(float(10 * np.log10(ov)))
+            print(f"[INFO] band overlap {sys.label} -> {ctx.label}: {ov:.4f}")
 
     timeline = np.arange(par.min_t_s, par.max_t_s, par.delta_t_s)
     n_steps = len(timeline)
@@ -514,17 +591,18 @@ def run_simulation(
         chunk_timeline = timeline[chunk_start:chunk_end]
         chunk_p_rain = p_rain_all[chunk_start:chunk_end]   # (chunk,)
 
-        # --- Batch orbit propagation for this chunk ---
-        all_orbit_positions = [
-            # testing random positions
-            # o.get_orbit_positions_random(orbital_rng, len(chunk_timeline))
-            o.get_orbit_positions_time_instant(chunk_timeline)
-            for o in orbit_models
-        ]
-        # (chunk, total_sats)
-        ngso_x_ecef = np.vstack([pos['sx'] for pos in all_orbit_positions]) * 1e3
-        ngso_y_ecef = np.vstack([pos['sy'] for pos in all_orbit_positions]) * 1e3
-        ngso_z_ecef = np.vstack([pos['sz'] for pos in all_orbit_positions]) * 1e3
+        # --- Batch orbit propagation for this chunk, per NGSO system ---
+        # ngso_ecef[k] = (x, y, z), each of shape (n_sats_of_system_k, chunk)
+        ngso_ecef = []
+        for orbit_models in orbit_models_per_sys:
+            positions = [
+                o.get_orbit_positions_time_instant(chunk_timeline)
+                for o in orbit_models
+            ]
+            ngso_ecef.append(tuple(
+                np.vstack([pos[c] for pos in positions]) * 1e3
+                for c in ("sx", "sy", "sz")
+            ))
 
         # --- Batch rain attenuation for this chunk ---
         rain_att_chunk: dict[str, np.ndarray] = {
@@ -536,76 +614,44 @@ def run_simulation(
             for es_key, ctx_group in es_groups.items():
                 ref_ctx = ctx_group[0]
 
-                nx, ny, nz = ref_ctx.global_coord_sys.ecef2enu(
-                    ngso_x_ecef[:, i], ngso_y_ecef[:, i], ngso_z_ecef[:, i]
-                )
-                ngso_geom = SimulatorGeometry(total_sats)
-                ngso_geom.set_global_coords(nx, ny, nz)
-
-                off_axis = ref_ctx.es_geom.get_off_axis_angle(ngso_geom)[0]
-                elevation = ref_ctx.es_geom.get_local_elevation(ngso_geom)[0]
-                off_axis = off_axis[elevation > par.minimum_elevation]
-                elevation = elevation[elevation > par.minimum_elevation]
-
-                if par.ngso.gso_protection_avoidance_angle is not None:
-                    elevation = elevation[off_axis > par.ngso.gso_protection_avoidance_angle]
-                    off_axis = off_axis[off_axis > par.ngso.gso_protection_avoidance_angle]
-
-                if par.selection_strategy == "RAND":
-                    n = min(par.ngso.n_co_channel, len(off_axis))
-                    selected = generic_rng.choice(
-                        len(off_axis),
-                        size=n,
-                        replace=False
+                # Each system selects its own co-channel satellites
+                selected_off_axis_per_sys = []
+                for k, sys in enumerate(par.ngso_systems):
+                    x, y, z = ngso_ecef[k]
+                    nx, ny, nz = ref_ctx.global_coord_sys.ecef2enu(
+                        x[:, i], y[:, i], z[:, i]
                     )
-                elif par.selection_strategy == "MAX_ELEV":
-                    selected = np.argsort(-elevation)[:par.ngso.n_co_channel]
-                elif par.selection_strategy == "WC":
-                    selected = np.argsort(off_axis)[:par.ngso.n_co_channel]
+                    ngso_geom = SimulatorGeometry(n_sats_per_sys[k])
+                    ngso_geom.set_global_coords(nx, ny, nz)
 
-                selected_off_axis = off_axis[selected]
+                    off_axis = ref_ctx.es_geom.get_off_axis_angle(ngso_geom)[0]
+                    elevation = ref_ctx.es_geom.get_local_elevation(ngso_geom)[0]
+                    selected_off_axis_per_sys.append(
+                        _select_satellites(sys, off_axis, elevation, generic_rng)
+                    )
+
+                    if not already_plotted and DEBUG:
+                        already_plotted = True
+                        plot_scenario(
+                            ref_ctx.global_coord_sys,
+                            ref_ctx.es_geom, ref_ctx.ss_geom, ngso_geom
+                        ).show()
 
                 for ctx in ctx_group:
-                    ant_rx_gain = es_ant_gain_1428(
-                        selected_off_axis,
-                        ctx.par.peak_rx_antenna_gain,
-                        ctx.es_rx_ant_d_lmbda,
-                    )
+                    rain_att = rain_att_chunk[ctx.label][i]
+                    interf_pow_per_system = {
+                        sys.label: _compute_system_interference(
+                            ctx, sys, selected_off_axis_per_sys[k],
+                            rain_att, overlap_db[ctx.label][k],
+                        )
+                        for k, sys in enumerate(par.ngso_systems)
+                    }
                     metrics = _compute_gso_link_metrics(
-                        ctx, off_axis, selected, ant_rx_gain,
-                        rain_att_chunk[ctx.label][i], par
+                        ctx, interf_pow_per_system, rain_att, par
                     )
                     results_writer.add_results(
                         metrics, f"gso_per_iteration{STR_SEPARATOR}{ctx.label}"
                     )
-                    equivalent_rx_gain = 10*np.log10(
-                        np.sum(10**(ant_rx_gain/10))
-                    )
-                    epfd_from_pfd = (
-                        par.ngso.tx_model.pfd_at_ref_bandwidth_dBW_m2
-                        + equivalent_rx_gain - ctx.par.peak_rx_antenna_gain
-                    )
-                    # results_writer.add_results(
-                    #     {
-                    #         "off_axis": selected_off_axis,
-                    #         "ant_rx_gain": ant_rx_gain,
-                    #     }, f"gso_per_ngso_per_iteration{STR_SEPARATOR}{ctx.label}"
-                    # )
-                    # results_writer.add_results(
-                    #     {
-                    #         "equivalent_rx_gain": equivalent_rx_gain,
-                    #         "epfd_from_pfd": epfd_from_pfd,
-                    #     }, f"extra_info{STR_SEPARATOR}{ctx.label}"
-                    # )
-
-                    if not already_plotted and DEBUG:
-                        already_plotted = True
-                    if not already_plotted and DEBUG:
-                        already_plotted = True
-                        plot_scenario(
-                            ctx.global_coord_sys,
-                            ctx.es_geom, ctx.ss_geom, ngso_geom
-                        ).show()
 
         results_writer.flush_results()
 

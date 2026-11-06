@@ -1,11 +1,14 @@
 from dataclasses import dataclass, field
 import typing
+from warnings import warn
 
 from sharc.parameters.parameters_base import ParametersBase
 from sharc.parameters.parameters_orbit import ParametersOrbit
 
 
 STR_SEPARATOR = "---"
+SELECTION_STRATEGIES = ("RAND", "MAX_ELEV", "WC")
+MIGRATION_SCRIPT = "scenarios/migrate_to_ngso_systems.py"
 
 
 # ---------------------------------------------------------------------------
@@ -82,6 +85,11 @@ class ParametersGSO(ParametersBase):
 
     added_loss: float = 0.0
 
+    def get_band_MHz(self) -> tuple[float, float]:
+        """(low, high) edges of the victim receive band [MHz]."""
+        fc = self.center_freq_GHz * 1e3
+        return (fc - self.bandwidth_MHz / 2, fc + self.bandwidth_MHz / 2)
+
     @property
     def full_name(self) -> str | None:
         if None in [self.label, self.earth_station.label]:
@@ -152,16 +160,45 @@ class ParametersNGSOTxModel(ParametersBase):
 @dataclass
 class ParametersNGSO(ParametersBase):
     """
-    NGSO constellation definition: one or more orbital shells plus the
+    One NGSO system (e.g. one operator): one or more orbital shells plus the
     transmit model and coordination parameters.
+
+    All shells of a system share the same n_co_channel budget. Different
+    systems select their co-channel satellites independently, and their
+    interference is aggregated at the GSO earth station.
     """
-    section_name: str = "ngso"
+    section_name: str = "ngso_systems"
     nested_parameters_enabled: bool = True
+
+    # Identifies the system in results columns (e.g. "i---<label>").
+    label: str = None
 
     # Number of co-frequency satellites considered in the worst-case
     # interference calculation.
     n_co_channel: int = None
     gso_protection_avoidance_angle: float = None
+
+    # Optional overrides. If None, the top-level ngso2gso values are used.
+    selection_strategy: str = None
+    minimum_elevation: float = None
+
+    # Optional emission band. If either is None, the system is assumed to
+    # fully overlap every GSO link's receive band.
+    center_freq_GHz: float = None
+    bandwidth_MHz: float = None
+
+    def band_overlap(self, gso: "ParametersGSO") -> float:
+        """
+        Fraction of the victim (GSO link) receive bandwidth covered by
+        this system's emission band. 1.0 if the system band is not set.
+        """
+        if self.center_freq_GHz is None or self.bandwidth_MHz is None:
+            return 1.0
+        fc = self.center_freq_GHz * 1e3
+        lo, hi = fc - self.bandwidth_MHz / 2, fc + self.bandwidth_MHz / 2
+        v_lo, v_hi = gso.get_band_MHz()
+        overlap_MHz = max(0.0, min(hi, v_hi) - max(lo, v_lo))
+        return overlap_MHz / gso.bandwidth_MHz
 
     orbits: list = field(default_factory=lambda: [ParametersOrbit()])
     tx_model: ParametersNGSOTxModel = field(
@@ -169,8 +206,31 @@ class ParametersNGSO(ParametersBase):
     )
 
     def validate(self, ctx: str):
-        if self.n_co_channel < 1:
+        if self.label is None:
+            raise ValueError(f"{ctx}.label is not set")
+        if STR_SEPARATOR in self.label:
+            raise ValueError(
+                f"{ctx}.label must not contain '{STR_SEPARATOR}'"
+            )
+        if self.n_co_channel is None or self.n_co_channel < 1:
             raise ValueError(f"{ctx}.n_co_channel must be >= 1.")
+        if self.selection_strategy not in SELECTION_STRATEGIES:
+            raise ValueError(
+                f"{ctx}.selection_strategy is '{self.selection_strategy}'"
+            )
+        if self.minimum_elevation is None:
+            raise ValueError(f"{ctx}.minimum_elevation must be defined")
+        if (self.center_freq_GHz is None) != (self.bandwidth_MHz is None):
+            raise ValueError(
+                f"{ctx}: set both center_freq_GHz and bandwidth_MHz, or neither"
+            )
+        if self.center_freq_GHz is None:
+            warn(
+                f"{ctx} ('{self.label}') has no center_freq_GHz/bandwidth_MHz;"
+                " assuming full band overlap with every GSO link."
+            )
+        elif self.bandwidth_MHz <= 0:
+            raise ValueError(f"{ctx}.bandwidth_MHz must be positive.")
         if not self.orbits:
             raise ValueError(f"{ctx}.orbits must contain at least one orbit.")
         for i, orbit in enumerate(self.orbits):
@@ -212,7 +272,10 @@ class ParametersNGSO2GSO(ParametersBase):
     minimum_elevation: float = None
 
     # --- Sub-parameters ---
-    ngso: ParametersNGSO = field(default_factory=ParametersNGSO)
+    # One entry per NGSO system (operator).
+    ngso_systems: list[ParametersNGSO] = field(
+        default_factory=lambda: [ParametersNGSO()]
+    )
 
     # List allows multiple GSO victims in one run.
     # load_subparameters handles list[ParametersBase] recursively already.
@@ -242,8 +305,6 @@ class ParametersNGSO2GSO(ParametersBase):
                 f"{ctx}.minimum_elevation must be defined"
             )
 
-        self.ngso.validate(f"{ctx}.ngso")
-
         labels_set = set()
         for i, gso in enumerate(self.gso_links):
             gso.validate(f"{ctx}.gso_links[{i}]")
@@ -259,11 +320,43 @@ class ParametersNGSO2GSO(ParametersBase):
 
             self.selection_strategy = "RAND"
 
-        if self.selection_strategy not in [
-            "RAND", "MAX_ELEV", "WC"
-        ]:
+        if self.selection_strategy not in SELECTION_STRATEGIES:
             raise ValueError(
                 f"{ctx}.selection_strategy is '{self.selection_strategy}'"
             )
 
+        if not self.ngso_systems:
+            raise ValueError(f"{ctx}.ngso_systems must not be empty")
+        sys_labels = set()
+        for i, sys in enumerate(self.ngso_systems):
+            if sys.selection_strategy is None:
+                sys.selection_strategy = self.selection_strategy
+            if sys.minimum_elevation is None:
+                sys.minimum_elevation = self.minimum_elevation
+            sys.validate(f"{ctx}.ngso_systems[{i}]")
+            if sys.label in sys_labels:
+                raise ValueError(
+                    f"{ctx}.ngso_systems has duplicated label '{sys.label}'"
+                )
+            sys_labels.add(sys.label)
+
         super().validate(ctx)
+
+    def load_parameters_from_file(self, config_file, quiet=True):
+        # This override only exists to give a helpful error for param files
+        # still in the old single-system format (`ngso2gso.ngso`), which was
+        # replaced by the `ngso2gso.ngso_systems` list.
+        # Without it, ParametersBase rejects the unknown `ngso` key with a
+        # generic "parameter doesn't exist" error, which doesn't tell the
+        # user that a migration script exists. Loading itself is unchanged.
+        import yaml
+        with open(config_file, "r") as f:
+            raw = yaml.safe_load(f)
+        sec = (raw or {}).get(self.section_name) or {}
+        if "ngso" in sec:
+            raise ValueError(
+                f"{config_file} uses the old '{self.section_name}.ngso' "
+                "format. Migrate it with:\n"
+                f"    python {MIGRATION_SCRIPT} {config_file}"
+            )
+        super().load_parameters_from_file(config_file, quiet)
