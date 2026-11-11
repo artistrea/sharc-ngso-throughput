@@ -152,45 +152,50 @@ ngso2gso:
     minimum_elevation: 35.0
     selection_strategy: RAND
 
-    ngso:
-      gso_protection_avoidance_angle: 2.0
-      n_co_channel: 8  # Nco
-      tx_model:
-        model: CONSTANT_PFD_AT_GND
-        pfd_at_ref_bandwidth_dBW_m2: -115.0
-      orbits:
-        # NOTE: from USASAT-NGSO-8A
-        # NOTE: the phasing_deg parameter is known to be wrong
-        # phasing between planes is not fixed for all planes
-        - n_planes: 289
-          sats_per_plane: 4
-          inclination_deg: 51.9
-          perigee_alt_km: 630.0
-          apogee_alt_km: 630.0
-          phasing_deg: 71.09
-        # NOTE: from USASAT-NGSO-8A
-        # NOTE: dissonant information from ITU filing and FCC Comments
-        # on ITU, inclination is 33deg. On FCC, 30deg
-        - n_planes: 1
-          sats_per_plane: 2
-          inclination_deg: 30.0
-          perigee_alt_km: 590.0
-          apogee_alt_km: 590.0
-          phasing_deg: 0.0  # does not matter, since only 1 plane
-        # NOTE: from USASAT-NGSO-8B
-        - n_planes: 1292
-          sats_per_plane: 1
-          inclination_deg: 42.0
-          perigee_alt_km: 610.0
-          apogee_alt_km: 610.0
-          # NOTE: do not know what exactly are the digits after .93, I just know they exist
-          phasing_deg: 273.933
-        # NOTE: from USASAT-NGSO-8C
-        - n_planes: 782
-          sats_per_plane: 1
-          inclination_deg: 33.0
-          perigee_alt_km: 590.0
-          apogee_alt_km: 590.0
-          phasing_deg: 16.615  # NOTE: there are more digits than .61, that is known
+    ngso_systems:
+      # Each entry is one NGSO system (operator) with its own Nco budget.
+      # All orbits of one system share that budget.
+      # Optional per system: selection_strategy, minimum_elevation,
+      # center_freq_GHz + bandwidth_MHz (unset = full band overlap).
+      - label: USASAT-NGSO-8
+        gso_protection_avoidance_angle: 2.0
+        n_co_channel: 8  # Nco
+        tx_model:
+          model: CONSTANT_PFD_AT_GND
+          pfd_at_ref_bandwidth_dBW_m2: -115.0
+        orbits:
+          # NOTE: from USASAT-NGSO-8A
+          # NOTE: the phasing_deg parameter is known to be wrong
+          # phasing between planes is not fixed for all planes
+          - n_planes: 289
+            sats_per_plane: 4
+            inclination_deg: 51.9
+            perigee_alt_km: 630.0
+            apogee_alt_km: 630.0
+            phasing_deg: 71.09
+          # NOTE: from USASAT-NGSO-8A
+          # NOTE: dissonant information from ITU filing and FCC Comments
+          # on ITU, inclination is 33deg. On FCC, 30deg
+          - n_planes: 1
+            sats_per_plane: 2
+            inclination_deg: 30.0
+            perigee_alt_km: 590.0
+            apogee_alt_km: 590.0
+            phasing_deg: 0.0  # does not matter, since only 1 plane
+          # NOTE: from USASAT-NGSO-8B
+          - n_planes: 1292
+            sats_per_plane: 1
+            inclination_deg: 42.0
+            perigee_alt_km: 610.0
+            apogee_alt_km: 610.0
+            # NOTE: do not know what exactly are the digits after .93, I just know they exist
+            phasing_deg: 273.933
+          # NOTE: from USASAT-NGSO-8C
+          - n_planes: 782
+            sats_per_plane: 1
+            inclination_deg: 33.0
+            perigee_alt_km: 590.0
+            apogee_alt_km: 590.0
+            phasing_deg: 16.615  # NOTE: there are more digits than .61, that is known
 
     gso_links: null

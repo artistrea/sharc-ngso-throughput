@@ -60,7 +60,6 @@ def main():
     gso_links = []
     raw_data["ngso2gso"]["gso_links"] = gso_links
 
-    raw_data["ngso2gso"]["ngso"]["tx_model"]["pfd_at_ref_bandwidth_dBW_m2"]
 
     for link_key, link in raw_data["gso_links_helpers"]["links"].items():
         for place_key, place in raw_data["gso_links_helpers"]["places"].items():
@@ -73,8 +72,10 @@ def main():
             d = deepcopy(raw_data)
             d["ngso2gso"]["scenario_name"] = scenario_name
             d["ngso2gso"]["selection_strategy"] = selection_strategy
-            d["ngso2gso"]["ngso"]["gso_protection_avoidance_angle"] = arc_avoid
-            d["ngso2gso"]["ngso"]["n_co_channel"] = n_co
+            # same protection params applied to every NGSO system
+            for ngso_sys in d["ngso2gso"]["ngso_systems"]:
+                ngso_sys["gso_protection_avoidance_angle"] = arc_avoid
+                ngso_sys["n_co_channel"] = n_co
             to_create.append((d, scenario_name + ".yaml"))
 
     if INPUTS_DIR.exists():
