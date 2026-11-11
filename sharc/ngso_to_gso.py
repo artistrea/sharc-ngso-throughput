@@ -614,20 +614,20 @@ def run_simulation(
             for es_key, ctx_group in es_groups.items():
                 ref_ctx = ctx_group[0]
 
-                # Each system selects its own co-channel satellites
-                selected_off_axis_per_sys = []
-                for k, sys in enumerate(par.ngso_systems):
+                # NGSO positions (and elevations) only depend on the earth
+                # station location, so compute them once per group
+                ngso_geom_per_sys = []
+                elevation_per_sys = []
+                for k in range(len(par.ngso_systems)):
                     x, y, z = ngso_ecef[k]
                     nx, ny, nz = ref_ctx.global_coord_sys.ecef2enu(
                         x[:, i], y[:, i], z[:, i]
                     )
                     ngso_geom = SimulatorGeometry(n_sats_per_sys[k])
                     ngso_geom.set_global_coords(nx, ny, nz)
-
-                    off_axis = ref_ctx.es_geom.get_off_axis_angle(ngso_geom)[0]
-                    elevation = ref_ctx.es_geom.get_local_elevation(ngso_geom)[0]
-                    selected_off_axis_per_sys.append(
-                        _select_satellites(sys, off_axis, elevation, generic_rng)
+                    ngso_geom_per_sys.append(ngso_geom)
+                    elevation_per_sys.append(
+                        ref_ctx.es_geom.get_local_elevation(ngso_geom)[0]
                     )
 
                     if not already_plotted and DEBUG:
@@ -639,13 +639,25 @@ def run_simulation(
 
                 for ctx in ctx_group:
                     rain_att = rain_att_chunk[ctx.label][i]
-                    interf_pow_per_system = {
-                        sys.label: _compute_system_interference(
-                            ctx, sys, selected_off_axis_per_sys[k],
-                            rain_att, overlap_db[ctx.label][k],
+                    interf_pow_per_system = {}
+                    for k, sys in enumerate(par.ngso_systems):
+                        # Off-axis angles depend on where this link's antenna
+                        # points (its own GSO satellite), so they must be
+                        # computed per link, not per earth station.
+                        # Each system selects its own co-channel satellites,
+                        # avoiding this link's GSO satellite.
+                        off_axis = ctx.es_geom.get_off_axis_angle(
+                            ngso_geom_per_sys[k]
+                        )[0]
+                        selected_off_axis = _select_satellites(
+                            sys, off_axis, elevation_per_sys[k], generic_rng
                         )
-                        for k, sys in enumerate(par.ngso_systems)
-                    }
+                        interf_pow_per_system[sys.label] = (
+                            _compute_system_interference(
+                                ctx, sys, selected_off_axis,
+                                rain_att, overlap_db[ctx.label][k],
+                            )
+                        )
                     metrics = _compute_gso_link_metrics(
                         ctx, interf_pow_per_system, rain_att, par
                     )
