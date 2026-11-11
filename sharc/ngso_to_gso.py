@@ -28,6 +28,7 @@ RESULTS_DIR = "./scenarios/results"
 RESULTS_JSON_RESUME_PATH = Path(f"{RESULTS_DIR}/results.json")
 
 DEBUG = False
+SELECTION_RNG_STREAM = 1
 
 
 def plot_scenario(
@@ -109,7 +110,13 @@ class ResultsWriter:
         inp_file: str | Path,
         scenario_name: str,
         continue_from_timestamp: str | None = None,
+        keep_rows: int = 0,
     ):
+        """
+        If continue_from_timestamp is given, results are appended to the
+        existing directory: the first keep_rows rows of each existing
+        parquet file are kept and new rows are written after them.
+        """
         if continue_from_timestamp is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         else:
@@ -147,6 +154,9 @@ class ResultsWriter:
 
         # One Arrow schema per attr_name.
         self.schemas = {}
+
+        # Rows kept from a previous (resumed) run.
+        self.keep_rows = keep_rows if continue_from_timestamp else 0
 
     def _check_existing_dir(self):
         if not self.directory.exists():
@@ -212,6 +222,9 @@ class ResultsWriter:
                 continue
 
             # Open Parquet file lazily.
+            if attr_name not in self.writers and self.keep_rows:
+                self._open_resumed_writer(attr_name)
+
             if attr_name not in self.writers:
                 path = self.directory / f"{attr_name}.parquet"
 
@@ -245,14 +258,69 @@ class ResultsWriter:
             for k in data:
                 data[k].clear()
 
-    def close(self):
-        self.flush_results()
+    def _tmp_path(self, attr_name: str) -> Path:
+        return self.directory / f"{attr_name}.parquet.tmp"
 
-        for writer in self.writers.values():
+    def _open_resumed_writer(self, attr_name: str):
+        """
+        Parquet files can't be appended to, so copy the rows kept from
+        the previous run into a temporary file and keep writing there.
+        close() moves it over the original file.
+        """
+        path = self.directory / f"{attr_name}.parquet"
+        if not path.exists():
+            raise ValueError(
+                f"Cannot resume: {path} does not exist"
+            )
+        old = pq.read_table(path)
+        if old.num_rows < self.keep_rows:
+            raise ValueError(
+                f"Cannot resume: {path} has {old.num_rows} rows, "
+                f"expected at least {self.keep_rows}"
+            )
+        self.schemas[attr_name] = old.schema
+        self.writers[attr_name] = pq.ParquetWriter(
+            self._tmp_path(attr_name),
+            schema=old.schema,
+            compression="zstd",
+        )
+        self.writers[attr_name].write_table(old.slice(0, self.keep_rows))
+
+    def close(self, flush: bool = True):
+        """
+        Close all parquet files. With flush=False, buffered results that
+        were not flushed yet are dropped, so the files only hold complete
+        chunks (used when the simulation is interrupted, so it can be
+        resumed from a chunk boundary).
+        """
+        if flush:
+            self.flush_results()
+
+        for attr_name, writer in self.writers.items():
             writer.close()
+            tmp = self._tmp_path(attr_name)
+            if tmp.exists():
+                tmp.replace(self.directory / f"{attr_name}.parquet")
 
         self.writers.clear()
         self.schemas.clear()
+        self.res.clear()
+
+    @staticmethod
+    def count_complete_rows(directory: Path) -> int | None:
+        """
+        Number of rows present in every gso_per_iteration parquet file of
+        a results directory. None if there are no files or any of them
+        can't be read (e.g. a run killed without closing the files).
+        """
+        files = list(Path(directory).glob("gso_per_iteration*.parquet"))
+        if not files:
+            return None
+        try:
+            return min(pq.ParquetFile(f).metadata.num_rows for f in files)
+        except Exception as e:
+            print(f"[WARN] cannot read previous results: {e}")
+            return None
 
 
 @dataclass
@@ -564,7 +632,14 @@ def run_simulation(
         np.random.default_rng(s).uniform(0, 100)
         for s in child_seed_seqs
     ])  # cheap — just n_steps floats
-    generic_rng = np.random.default_rng(par.seed)
+
+    # Satellite selection rng is derived from (seed, time step), so a drop
+    # selects the same satellites no matter where the run started from.
+    # spawn_key length 2 keeps it independent from child_seed_seqs above.
+    def selection_rng(step: int) -> np.random.Generator:
+        return np.random.default_rng(np.random.SeedSequence(
+            par.seed, spawn_key=(SELECTION_RNG_STREAM, step)
+        ))
     # orbital_rng = np.random.RandomState(par.seed)
 
     # Tune this to your available RAM. At 3232 sats:
@@ -611,6 +686,7 @@ def run_simulation(
         }
         # --- Step loop within chunk ---
         for i in tqdm(range(len(chunk_timeline)), desc="steps", leave=False):
+            step_rng = selection_rng(chunk_start + i)
             for es_key, ctx_group in es_groups.items():
                 ref_ctx = ctx_group[0]
 
@@ -627,7 +703,7 @@ def run_simulation(
                     off_axis = ref_ctx.es_geom.get_off_axis_angle(ngso_geom)[0]
                     elevation = ref_ctx.es_geom.get_local_elevation(ngso_geom)[0]
                     selected_off_axis_per_sys.append(
-                        _select_satellites(sys, off_axis, elevation, generic_rng)
+                        _select_satellites(sys, off_axis, elevation, step_rng)
                     )
 
                     if not already_plotted and DEBUG:
@@ -655,7 +731,6 @@ def run_simulation(
 
         results_writer.flush_results()
 
-    results_writer.flush_results()
     results_writer.close()
 
 
@@ -689,15 +764,15 @@ def create_results_writer(
     drops_start = 0
 
     if latest_file_params_text == params_text:
-        csvs_at_dir = list(latest_result_dir.glob("gso_per_iteration*.csv"))
-        if len(csvs_at_dir) != 0:
-            per_drop_csv = csvs_at_dir[0]
-            drops_ran = len(per_drop_csv.read_text().split('\n')) - 2
-            drops_should_run = (par.max_t_s - par.min_t_s) / par.delta_t_s
+        drops_ran = ResultsWriter.count_complete_rows(latest_result_dir)
+        if drops_ran is not None:
+            drops_should_run = len(
+                np.arange(par.min_t_s, par.max_t_s, par.delta_t_s)
+            )
 
-            if drops_ran != drops_should_run:
-                dt_str = str(latest_result_dir.name)
-                timestamp = "_".join(dt_str.split("_")[-2:])
+            if 0 < drops_ran < drops_should_run:
+                # results dir is RESULTS_DIR/<timestamp>/<scenario_name>
+                timestamp = latest_result_dir.parent.name
                 dt = datetime.strptime(timestamp, "%Y%m%d_%H%M%S")
                 print(
                     "It seems there already a previous simulation "
@@ -710,10 +785,10 @@ def create_results_writer(
                     res = res.upper()
 
                 if res == "Y":
-                    yyyyyyyyyyy = drops_ran
+                    drops_start = drops_ran
                     results_writer = ResultsWriter(
                         f"{RESULTS_DIR}/", param_file, par.scenario_name,
-                        timestamp
+                        timestamp, keep_rows=drops_start,
                     )
 
     if results_writer is None:
@@ -725,9 +800,9 @@ def create_results_writer(
         par.scenario_name, {}
     )['latest_res_dir'] = str(results_writer.directory)
 
-    # RESULTS_JSON_RESUME_PATH.write_text(json.dumps(
-    #     results_json_resume, sort_keys=True, indent=4
-    # ))
+    RESULTS_JSON_RESUME_PATH.write_text(json.dumps(
+        results_json_resume, sort_keys=True, indent=4
+    ))
 
     return results_writer, drops_start
 
@@ -756,10 +831,16 @@ def main():
 
     print(f"Results will be saved on {results_writer.directory}")
 
-    run_simulation(
-        par, results_writer, param_file,
-        start_from_drop=drops_ran
-    )
+    try:
+        run_simulation(
+            par, results_writer, param_file,
+            start_from_drop=drops_ran
+        )
+    except BaseException:
+        # Close the parquet files so they stay readable, dropping the
+        # unfinished chunk, so the run can be resumed from a chunk boundary
+        results_writer.close(flush=False)
+        raise
 
 
 if __name__ == "__main__":
