@@ -1,6 +1,8 @@
 """
-Regression tests for ngso_to_gso: interference into a GSO link must be
-computed from that link's own earth station antenna pointing.
+Regression tests for per-link off-axis angles in ngso_to_gso.
+
+Interference into a GSO link must be computed from that link's own earth
+station antenna pointing.
 
 GSO links at the same earth station are grouped so NGSO positions are only
 converted once per station. A bug computed off-axis angles (rx antenna gain
@@ -36,18 +38,23 @@ class MemoryResultsWriter:
     """Stand-in for ResultsWriter that keeps results in memory."""
 
     def __init__(self):
+        """Start with no results."""
         self.rows = {}
 
     def add_results(self, new_res: dict, attr_name: str):
+        """Store one row of results."""
         self.rows.setdefault(attr_name, []).append(dict(new_res))
 
     def flush_results(self):
+        """Do nothing, results are kept in memory."""
         pass
 
     def close(self, *args, **kwargs):
+        """Do nothing, results are kept in memory."""
         pass
 
     def column(self, link_label: str, col: str) -> np.ndarray:
+        """Return one results column of a link as an array."""
         attr = (
             f"gso_per_iteration{STR_SEPARATOR}{link_label}"
             f"{STR_SEPARATOR}{EARTH_STATION['label']}"
@@ -56,6 +63,7 @@ class MemoryResultsWriter:
 
 
 def make_params(tmp_dir: Path, links: list[dict]) -> ParametersNGSO2GSO:
+    """Build a small scenario with the given GSO links at one station."""
     raw = {"ngso2gso": {
         "version": 2,
         "scenario_name": "per_link_test",
@@ -93,6 +101,7 @@ def make_params(tmp_dir: Path, links: list[dict]) -> ParametersNGSO2GSO:
 
 
 def run(tmp_dir: Path, links: list[dict]) -> MemoryResultsWriter:
+    """Run the simulation for the given links, returning the results."""
     writer = MemoryResultsWriter()
     run_simulation(make_params(tmp_dir, links), writer)
     return writer
@@ -103,6 +112,7 @@ class NGSO2GSOPerLinkOffAxisTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        """Run the scenario with each link alone and with both together."""
         with tempfile.TemporaryDirectory() as d:
             d = Path(d)
             cls.alone_a = run(d, [LINK_A])
@@ -130,10 +140,12 @@ class NGSO2GSOPerLinkOffAxisTest(unittest.TestCase):
         ))
 
     def test_second_link_at_station_matches_running_alone(self):
+        """The non-first link of a station group must not be affected."""
         self._assert_same(self.a_then_b, self.alone_b, "B")
         self._assert_same(self.b_then_a, self.alone_a, "A")
 
     def test_first_link_at_station_matches_running_alone(self):
+        """The first link of a station group must not be affected."""
         self._assert_same(self.a_then_b, self.alone_a, "A")
         self._assert_same(self.b_then_a, self.alone_b, "B")
 
