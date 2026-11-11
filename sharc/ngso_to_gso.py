@@ -838,8 +838,15 @@ def main():
         )
     except BaseException:
         # Close the parquet files so they stay readable, dropping the
-        # unfinished chunk, so the run can be resumed from a chunk boundary
-        results_writer.close(flush=False)
+        # unfinished chunk, so the run can be resumed from a chunk boundary.
+        # A failure here must not hide the original error.
+        try:
+            results_writer.close(flush=False)
+        except Exception as close_err:
+            print(
+                "[WARN] could not close result files cleanly: "
+                f"{close_err!r}"
+            )
         raise
 
 

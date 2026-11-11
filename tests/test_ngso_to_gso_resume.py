@@ -263,6 +263,27 @@ class NGSO2GSOResumeTest(unittest.TestCase):
         self.assertNotEqual(self.latest_dir("reference"), expected)
         self.assert_same_results(self.latest_dir("reference"), expected)
 
+    def test_failing_cleanup_does_not_hide_original_error(self):
+        """If closing the files fails too, the run's error still surfaces."""
+        class SimulationError(Exception):
+            pass
+
+        def failing_flush(writer):
+            raise SimulationError("error during the simulation")
+
+        def failing_close(writer, flush=True):
+            raise OSError("error while closing the result files")
+
+        argv = ["sharc", "-p", str(make_param_file(self.tmp, "failing"))]
+        with mock.patch.object(sys, "argv", argv), \
+                mock.patch.object(
+                    ResultsWriter, "flush_results", failing_flush), \
+                mock.patch.object(ResultsWriter, "close", failing_close), \
+                self.assertRaises(SimulationError) as raised:
+            ngso_to_gso.main()
+
+        self.assertEqual(str(raised.exception), "error during the simulation")
+
     def test_selection_does_not_depend_on_start_drop(self):
         """Drops select the same satellites wherever the run started."""
         par_file = make_param_file(self.tmp, "start_drop")
