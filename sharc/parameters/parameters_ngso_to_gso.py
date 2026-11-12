@@ -373,12 +373,13 @@ class ParametersNGSO2GSO(ParametersBase):
                 if sys.center_freq_GHz is not None
             ]
             if with_band:
-                raise ValueError(
+                warn(
                     f"NGSO systems {with_band} set center_freq_GHz/"
                     f"bandwidth_MHz, but {ctx}.band_overlap is 'FULL', so "
-                    "those values would be ignored. Either remove them, or "
-                    f"set {ctx}.band_overlap: FRACTION to scale interference "
-                    "by the fraction of each GSO link's band they cover."
+                    "those values are ignored and no frequency scaling is "
+                    f"applied. Set {ctx}.band_overlap: FRACTION to scale "
+                    "interference by the fraction of each GSO link's band "
+                    "they cover."
                 )
             if self.allow_zero_band_overlap:
                 raise ValueError(

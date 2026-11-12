@@ -100,10 +100,13 @@ class NGSO2GSOBandOverlapValidationTest(unittest.TestCase):
             par.band_overlap_fractions(), {LINK_FULL_NAME: {"NGSO": 1.0}}
         )
 
-    def test_full_rejects_ngso_band(self):
-        """A band set while in FULL mode would be silently ignored."""
-        with self.assertRaisesRegex(ValueError, "band_overlap is 'FULL'"):
-            self.case.params(ngso=HALF_BAND)
+    def test_full_ignores_ngso_band_with_warning(self):
+        """A band set in FULL mode is accepted, ignored, and warned about."""
+        with self.assertWarnsRegex(UserWarning, "band_overlap is 'FULL'"):
+            par = self.case.params(ngso=HALF_BAND)
+        self.assertEqual(
+            par.band_overlap_fractions(), {LINK_FULL_NAME: {"NGSO": 1.0}}
+        )
 
     def test_full_rejects_allow_zero(self):
         """allow_zero_band_overlap means nothing in FULL mode."""

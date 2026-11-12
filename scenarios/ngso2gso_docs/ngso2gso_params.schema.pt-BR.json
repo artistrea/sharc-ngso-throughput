@@ -76,7 +76,7 @@
           "type": "string",
           "enum": ["FULL", "FRACTION"],
           "default": "FULL",
-          "description": "Como a interferência NGSO em cada enlace GSO é ponderada pela sobreposição em frequência. FULL (padrão): todo sistema NGSO é cocanal com todo enlace GSO e não há ponderação; os sistemas NGSO NÃO podem definir center_freq_GHz/bandwidth_MHz. FRACTION: a interferência de cada sistema em cada enlace é multiplicada pela fração da banda do enlace [center_freq_GHz +/- bandwidth_MHz/2] coberta pela banda do sistema; todo sistema NGSO precisa definir center_freq_GHz e bandwidth_MHz. Os fatores aplicados são impressos no início e salvos em band_overlap.json no diretório de resultados."
+          "description": "Como a interferência NGSO em cada enlace GSO é ponderada pela sobreposição em frequência. FULL (padrão): todo sistema NGSO é cocanal com todo enlace GSO e não há ponderação; center_freq_GHz/bandwidth_MHz dos sistemas NGSO, se definidos, são ignorados e um aviso é emitido. FRACTION: a interferência de cada sistema em cada enlace é multiplicada pela fração da banda do enlace [center_freq_GHz +/- bandwidth_MHz/2] coberta pela banda do sistema; todo sistema NGSO precisa definir center_freq_GHz e bandwidth_MHz. Os fatores aplicados são impressos no início e salvos em band_overlap.json no diretório de resultados."
         },
         "allow_zero_band_overlap": {
           "type": "boolean",
@@ -111,7 +111,7 @@
           "else": { "not": { "required": ["selection_strategy"] } }
         },
         {
-          "$comment": "band_overlap: FRACTION exige center_freq_GHz e bandwidth_MHz em todo sistema NGSO. Caso contrário (FULL, o padrão), os sistemas NGSO não podem defini-los e allow_zero_band_overlap não pode ser true. Verificado só ao carregar: com FRACTION, sobreposição zero entre um sistema e um enlace é recusada, a menos que allow_zero_band_overlap seja true.",
+          "$comment": "band_overlap: FRACTION exige center_freq_GHz e bandwidth_MHz em todo sistema NGSO. Caso contrário (FULL, o padrão), allow_zero_band_overlap não pode ser true; as bandas NGSO podem ser definidas, mas são ignoradas (o simulador emite um aviso). Verificado só ao carregar: com FRACTION, sobreposição zero entre um sistema e um enlace é recusada, a menos que allow_zero_band_overlap seja true.",
           "if": {
             "properties": { "band_overlap": { "const": "FRACTION" } },
             "required": ["band_overlap"]
@@ -123,11 +123,6 @@
           },
           "else": {
             "properties": {
-              "ngso_systems": {
-                "items": {
-                  "not": { "anyOf": [{ "required": ["center_freq_GHz"] }, { "required": ["bandwidth_MHz"] }] }
-                }
-              },
               "allow_zero_band_overlap": { "const": false }
             }
           }
@@ -136,7 +131,7 @@
     },
 
     "ngso_system": {
-      "$comment": "center_freq_GHz e bandwidth_MHz: ambos ou nenhum (dependentRequired). Obrigatórios quando ngso2gso.band_overlap é FRACTION, proibidos caso contrário. Fator de escala da interferência = sobreposição de [fc-bw/2, fc+bw/2] com a banda da vítima / banda da vítima.",
+      "$comment": "center_freq_GHz e bandwidth_MHz: ambos ou nenhum (dependentRequired). Obrigatórios quando ngso2gso.band_overlap é FRACTION; ignorados (com aviso) caso contrário. Fator de escala da interferência = sobreposição de [fc-bw/2, fc+bw/2] com a banda da vítima / banda da vítima.",
       "type": "object",
       "description": "Um sistema NGSO (ParametersNGSO). Todas as suas órbitas compartilham o mesmo n_co_channel.",
       "required": ["label", "n_co_channel", "orbits"],
@@ -168,12 +163,12 @@
         "center_freq_GHz": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "description": "Frequência central de emissão [GHz]. Só permitida, e então obrigatória, quando ngso2gso.band_overlap é FRACTION. Definir junto com bandwidth_MHz. A interferência em cada enlace GSO é então multiplicada pela fração da banda de recepção da vítima coberta por [fc - bw/2, fc + bw/2]."
+          "description": "Frequência central de emissão [GHz]. Obrigatória quando ngso2gso.band_overlap é FRACTION; caso contrário, ignorada, com aviso. Definir junto com bandwidth_MHz. A interferência em cada enlace GSO é então multiplicada pela fração da banda de recepção da vítima coberta por [fc - bw/2, fc + bw/2]."
         },
         "bandwidth_MHz": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "description": "Largura de banda de emissão [MHz]. Só permitida, e então obrigatória, quando ngso2gso.band_overlap é FRACTION. Definir junto com center_freq_GHz."
+          "description": "Largura de banda de emissão [MHz]. Obrigatória quando ngso2gso.band_overlap é FRACTION; caso contrário, ignorada, com aviso. Definir junto com center_freq_GHz."
         },
         "tx_model": { "$ref": "#/$defs/tx_model" },
         "orbits": {
