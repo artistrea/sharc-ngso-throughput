@@ -224,47 +224,49 @@
       }
     },
     "orbit": {
-      "$comment": "Load-time only: apogee_alt_km >= perigee_alt_km. Every field has a default, so a missing key silently uses it; set n_planes, sats_per_plane, inclination_deg, perigee_alt_km, apogee_alt_km and phasing_deg explicitly.",
+      "$comment": "Load-time only: apogee_alt_km >= perigee_alt_km. The six shape fields have no default: leaving any of them out is a load-time error that lists every missing field.",
       "type": "object",
-      "description": "One Walker-like orbital shell (ParametersOrbit). Unset fields take the defaults shown; it is recommended to set the first six explicitly. apogee_alt_km must be >= perigee_alt_km.",
+      "description": "One Walker-like orbital shell (ParametersOrbit). n_planes, sats_per_plane, inclination_deg, perigee_alt_km, apogee_alt_km and phasing_deg are required; long_asc_deg, omega_deg and initial_mean_anomaly default to 0. apogee_alt_km must be >= perigee_alt_km.",
+      "required": [
+        "n_planes",
+        "sats_per_plane",
+        "inclination_deg",
+        "perigee_alt_km",
+        "apogee_alt_km",
+        "phasing_deg"
+      ],
       "additionalProperties": false,
       "properties": {
         "n_planes": {
           "type": "integer",
           "minimum": 1,
-          "default": 8,
           "description": "Number of orbital planes."
         },
         "sats_per_plane": {
           "type": "integer",
           "minimum": 1,
-          "default": 6,
           "description": "Satellites per plane."
         },
         "inclination_deg": {
           "type": "number",
           "minimum": 0,
           "maximum": 180,
-          "default": 52.0,
           "description": "Orbital inclination [deg]."
         },
         "perigee_alt_km": {
           "type": "number",
           "minimum": 0,
-          "default": 1414.0,
           "description": "Perigee altitude [km]."
         },
         "apogee_alt_km": {
           "type": "number",
           "minimum": 0,
-          "default": 1414.0,
           "description": "Apogee altitude [km]. Must be >= perigee_alt_km (equal for circular orbits)."
         },
         "phasing_deg": {
           "type": "number",
           "minimum": 0,
           "maximum": 360,
-          "default": 7.5,
           "description": "Phasing between satellites of adjacent planes [deg]. Irrelevant when n_planes = 1."
         },
         "long_asc_deg": {

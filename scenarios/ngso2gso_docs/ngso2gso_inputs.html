@@ -302,16 +302,16 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
 
     <section id="orbits">
       <h3><code>orbits[]</code>: one entry per shell</h3>
-      <div class="prose"><p>The example has four shells taken from the USASAT-NGSO-8A/B/C filings (289×4 at 630 km and 51.9°, 1×2 at 590 km and 30°, 1292×1 at 610 km and 42°, 782×1 at 590 km and 33°). Every field has a default, so a missing key silently becomes the default shell (8×6 at 1414 km, 52°). Set the first six explicitly.</p></div>
+      <div class="prose"><p>The example has four shells taken from the USASAT-NGSO-8A/B/C filings (289×4 at 630 km and 51.9°, 1×2 at 590 km and 30°, 1292×1 at 610 km and 42°, 782×1 at 590 km and 33°). The first six fields are required: leaving any of them out stops the run at load time with an error that lists every missing key. <code>long_asc_deg</code>, <code>omega_deg</code> and <code>initial_mean_anomaly</code> are optional and default to 0.</p></div>
       <div class="tablewrap"><table>
         <thead><tr><th>Key</th><th>Unit</th><th>Default</th><th>Example</th><th>Meaning</th></tr></thead>
         <tbody>
-          <tr><td><code>n_planes</code></td><td class="unit">-</td><td class="num">8</td><td class="num">289</td><td>Number of orbital planes.</td></tr>
-          <tr><td><code>sats_per_plane</code></td><td class="unit">-</td><td class="num">6</td><td class="num">4</td><td>Satellites in each plane.</td></tr>
-          <tr><td><code>inclination_deg</code></td><td class="unit">deg</td><td class="num">52.0</td><td class="num">51.9</td><td>0 to 180.</td></tr>
-          <tr><td><code>perigee_alt_km</code></td><td class="unit">km</td><td class="num">1414.0</td><td class="num">630.0</td><td>≥ 0.</td></tr>
-          <tr><td><code>apogee_alt_km</code></td><td class="unit">km</td><td class="num">1414.0</td><td class="num">630.0</td><td>≥ perigee. Equal values give a circular orbit.</td></tr>
-          <tr><td><code>phasing_deg</code></td><td class="unit">deg</td><td class="num">7.5</td><td class="num">71.09</td><td>Inter-plane phasing, 0 to 360. Irrelevant when <code>n_planes</code> is 1.</td></tr>
+          <tr><td><code>n_planes</code></td><td class="unit">-</td><td><span class="pill req">required</span></td><td class="num">289</td><td>Number of orbital planes.</td></tr>
+          <tr><td><code>sats_per_plane</code></td><td class="unit">-</td><td><span class="pill req">required</span></td><td class="num">4</td><td>Satellites in each plane.</td></tr>
+          <tr><td><code>inclination_deg</code></td><td class="unit">deg</td><td><span class="pill req">required</span></td><td class="num">51.9</td><td>0 to 180.</td></tr>
+          <tr><td><code>perigee_alt_km</code></td><td class="unit">km</td><td><span class="pill req">required</span></td><td class="num">630.0</td><td>≥ 0.</td></tr>
+          <tr><td><code>apogee_alt_km</code></td><td class="unit">km</td><td><span class="pill req">required</span></td><td class="num">630.0</td><td>≥ perigee. Equal values give a circular orbit.</td></tr>
+          <tr><td><code>phasing_deg</code></td><td class="unit">deg</td><td><span class="pill req">required</span></td><td class="num">71.09</td><td>Inter-plane phasing, 0 to 360. Irrelevant when <code>n_planes</code> is 1.</td></tr>
           <tr><td><code>long_asc_deg</code></td><td class="unit">deg</td><td class="num">0.0</td><td class="num">-</td><td>Longitude of ascending node of the first plane.</td></tr>
           <tr><td><code>omega_deg</code></td><td class="unit">deg</td><td class="num">0.0</td><td class="num">-</td><td>Argument of perigee.</td></tr>
           <tr><td><code>initial_mean_anomaly</code></td><td class="unit">deg</td><td class="num">0.0</td><td class="num">-</td><td>Mean anomaly at t = 0.</td></tr>

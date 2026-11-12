@@ -317,16 +317,16 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
 
     <section id="orbits">
       <h3><code>orbits[]</code>: um item por camada orbital</h3>
-      <div class="prose"><p>O exemplo tem quatro camadas, tiradas das submissões USASAT-NGSO-8A/B/C (289×4 a 630 km e 51,9°, 1×2 a 590 km e 30°, 1292×1 a 610 km e 42°, 782×1 a 590 km e 33°). Todo campo tem valor padrão, então uma chave esquecida vira silenciosamente a camada padrão (8×6 a 1414 km, 52°). Defina as seis primeiras explicitamente.</p></div>
+      <div class="prose"><p>O exemplo tem quatro camadas, tiradas das submissões USASAT-NGSO-8A/B/C (289×4 a 630 km e 51,9°, 1×2 a 590 km e 30°, 1292×1 a 610 km e 42°, 782×1 a 590 km e 33°). Os seis primeiros campos são obrigatórios: omitir qualquer um deles interrompe a execução ao carregar, com um erro que lista todas as chaves ausentes. <code>long_asc_deg</code>, <code>omega_deg</code> e <code>initial_mean_anomaly</code> são opcionais e valem 0 por padrão.</p></div>
       <div class="tablewrap"><table>
         <thead><tr><th>Chave</th><th>Unidade</th><th>Padrão</th><th>Exemplo</th><th>Significado</th></tr></thead>
         <tbody>
-          <tr><td><code>n_planes</code></td><td class="unit">-</td><td class="num">8</td><td class="num">289</td><td>Número de planos orbitais.</td></tr>
-          <tr><td><code>sats_per_plane</code></td><td class="unit">-</td><td class="num">6</td><td class="num">4</td><td>Satélites em cada plano.</td></tr>
-          <tr><td><code>inclination_deg</code></td><td class="unit">graus</td><td class="num">52.0</td><td class="num">51.9</td><td>De 0 a 180.</td></tr>
-          <tr><td><code>perigee_alt_km</code></td><td class="unit">km</td><td class="num">1414.0</td><td class="num">630.0</td><td>≥ 0.</td></tr>
-          <tr><td><code>apogee_alt_km</code></td><td class="unit">km</td><td class="num">1414.0</td><td class="num">630.0</td><td>≥ perigeu. Valores iguais dão órbita circular.</td></tr>
-          <tr><td><code>phasing_deg</code></td><td class="unit">graus</td><td class="num">7.5</td><td class="num">71.09</td><td>Defasagem entre planos, de 0 a 360. Irrelevante quando <code>n_planes</code> é 1.</td></tr>
+          <tr><td><code>n_planes</code></td><td class="unit">-</td><td><span class="pill req">obrigatório</span></td><td class="num">289</td><td>Número de planos orbitais.</td></tr>
+          <tr><td><code>sats_per_plane</code></td><td class="unit">-</td><td><span class="pill req">obrigatório</span></td><td class="num">4</td><td>Satélites em cada plano.</td></tr>
+          <tr><td><code>inclination_deg</code></td><td class="unit">graus</td><td><span class="pill req">obrigatório</span></td><td class="num">51.9</td><td>De 0 a 180.</td></tr>
+          <tr><td><code>perigee_alt_km</code></td><td class="unit">km</td><td><span class="pill req">obrigatório</span></td><td class="num">630.0</td><td>≥ 0.</td></tr>
+          <tr><td><code>apogee_alt_km</code></td><td class="unit">km</td><td><span class="pill req">obrigatório</span></td><td class="num">630.0</td><td>≥ perigeu. Valores iguais dão órbita circular.</td></tr>
+          <tr><td><code>phasing_deg</code></td><td class="unit">graus</td><td><span class="pill req">obrigatório</span></td><td class="num">71.09</td><td>Defasagem entre planos, de 0 a 360. Irrelevante quando <code>n_planes</code> é 1.</td></tr>
           <tr><td><code>long_asc_deg</code></td><td class="unit">graus</td><td class="num">0.0</td><td class="num">-</td><td>Longitude do nó ascendente do primeiro plano.</td></tr>
           <tr><td><code>omega_deg</code></td><td class="unit">graus</td><td class="num">0.0</td><td class="num">-</td><td>Argumento do perigeu.</td></tr>
           <tr><td><code>initial_mean_anomaly</code></td><td class="unit">graus</td><td class="num">0.0</td><td class="num">-</td><td>Anomalia média em t = 0.</td></tr>
