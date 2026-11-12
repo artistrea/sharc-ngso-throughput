@@ -7,15 +7,32 @@ from warnings import warn
 class ParametersOrbit(ParametersBase):
     """
     Parameters for satellite orbit configuration, including planes, satellites per plane, and orbital elements.
+
+    The shape of the constellation (n_planes, sats_per_plane, phasing_deg,
+    inclination_deg, perigee_alt_km, apogee_alt_km) has no default and MUST be
+    set by the user; `validate` raises a ValueError listing any left unset.
+    long_asc_deg, omega_deg and initial_mean_anomaly are optional (default 0).
     """
-    n_planes: int = 8
-    sats_per_plane: int = 6
-    phasing_deg: float = 7.5
+    _REQUIRED_PARAMETERS = (
+        "n_planes",
+        "sats_per_plane",
+        "phasing_deg",
+        "inclination_deg",
+        "perigee_alt_km",
+        "apogee_alt_km",
+    )
+
+    # required
+    n_planes: int = None
+    sats_per_plane: int = None
+    phasing_deg: float = None
+    inclination_deg: float = None
+    perigee_alt_km: float = None
+    apogee_alt_km: float = None
+
+    # optional
     long_asc_deg: float = 0.0
     omega_deg: float = 0.0
-    inclination_deg: float = 52.0
-    perigee_alt_km: float = 1414.0
-    apogee_alt_km: float = 1414.0
     initial_mean_anomaly: float = 0.0
 
     # by default, three time dependant angles are set to be
@@ -50,6 +67,24 @@ class ParametersOrbit(ParametersBase):
         ValueError
             If any parameter is invalid.
         """
+        missing = [
+            name for name in self._REQUIRED_PARAMETERS
+            if getattr(self, name) is None
+        ]
+        if missing:
+            raise ValueError(
+                f"{ctx} is missing required orbit parameter(s): "
+                f"{', '.join(missing)}.\n"
+                f"Every orbit must explicitly set all of: "
+                f"{', '.join(self._REQUIRED_PARAMETERS)}."
+            )
+
+        if self.n_planes <= 0 or self.sats_per_plane <= 0:
+            raise ValueError(
+                f"Invalid {ctx}: n_planes = {self.n_planes} and "
+                f"sats_per_plane = {self.sats_per_plane} must both be positive."
+            )
+
         if not (0 <= self.inclination_deg <= 180):
             raise ValueError(
                 f"Invalid {ctx}.inclination_deg = {
