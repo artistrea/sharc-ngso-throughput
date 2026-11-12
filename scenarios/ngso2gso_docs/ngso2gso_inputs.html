@@ -153,6 +153,7 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
   <nav class="index" aria-label="Sections">
     <span class="label">On this page</span>
     <a href="#overview">Overview</a>
+    <a href="#install">Install and run</a>
     <a href="#minimal">Minimal file</a>
     <a href="#top-level">ngso2gso</a>
     <a class="sub" href="#ngso-systems">ngso_systems</a>
@@ -169,7 +170,8 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
       <h1>Populating NGSO-to-GSO inputs</h1>
       <p class="lede">How to fill in a parameter file for <code>sharc/ngso_to_gso.py</code>, based on the example in <code>scenarios/scenario_base.yaml</code> (USASAT-NGSO-8 into Ku/Ka-band GSO links over Las Vegas, Kansas and Miami).</p>
       <div class="meta">
-        <span>branch feat/multiconstellation_support</span>
+        <span>repo <a href="https://github.com/artistrea/sharc-ngso-throughput">artistrea/sharc-ngso-throughput</a></span>
+        <span>branch <a href="https://github.com/artistrea/sharc-ngso-throughput/tree/feat/ngso_throughput_studies">feat/ngso_throughput_studies</a></span>
         <span>format version 2</span>
         <span>schema: ngso2gso_params.schema.json</span>
       </div>
@@ -197,6 +199,26 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
       <span class="k">earth_station</span>: { label, lat_deg, lon_deg, alt_m? }</pre>
     </section>
 
+
+    <section id="install">
+      <h2>Installation and running</h2>
+      <div class="prose"><p>Needs Python 3.12 or newer and git. Clone the branch, create a virtual environment, install the pinned dependencies, then install the repository itself in editable mode so <code>import sharc</code> works from the scripts.</p></div>
+      <div class="codebox">
+        <button class="copy" type="button" id="copy-install" data-target="install-sh">Copy</button>
+<pre id="install-sh">git clone --branch feat/ngso_throughput_studies https://github.com/artistrea/sharc-ngso-throughput.git
+cd sharc-ngso-throughput
+python3 -m venv .venv
+source .venv/bin/activate          <span class="c"># Windows: .venv\Scripts\activate</span>
+pip install -r requirements.txt
+pip install -e .</pre>
+      </div>
+      <div class="prose"><p>Run from the repository root, passing the parameter file with <code>-p</code>. The minimal example below takes a few seconds:</p></div>
+      <div class="codebox">
+        <button class="copy" type="button" id="copy-run" data-target="run-sh">Copy</button>
+<pre id="run-sh">python sharc/ngso_to_gso.py -p scenarios/ngso2gso_docs/exemplo_minimo.yaml</pre>
+      </div>
+      <div class="prose"><p>The script prints the output directory, <code>scenarios/results/&lt;timestamp&gt;/&lt;scenario_name&gt;/</code>, relative to the directory you run it from. A copy of the parameter file is saved there next to the parquet results (see <a href="#outputs">What the inputs control</a>). If a run with the same <code>scenario_name</code> and an identical parameter file was interrupted, the next run asks whether to continue it.</p></div>
+    </section>
 
     <section id="minimal">
       <h2>A minimal runnable file</h2>

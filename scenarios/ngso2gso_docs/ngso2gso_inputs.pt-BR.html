@@ -153,6 +153,7 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
   <nav class="index" aria-label="Seções">
     <span class="label">Nesta página</span>
     <a href="#visao-geral">Visão geral</a>
+    <a href="#instalacao">Instalação e execução</a>
     <a href="#exemplos">Arquivos de exemplo</a>
     <a href="#minimo">Arquivo mínimo</a>
     <a href="#nivel-superior">ngso2gso</a>
@@ -170,7 +171,8 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
       <h1>Como preencher as entradas NGSO-para-GSO</h1>
       <p class="lede">Como montar um arquivo de parâmetros para <code>sharc/ngso_to_gso.py</code>, a partir do exemplo em <code>scenarios/scenario_base.yaml</code> (USASAT-NGSO-8 interferindo em enlaces GSO em banda Ka sobre Las Vegas, Kansas e Miami).</p>
       <div class="meta">
-        <span>branch feat/multiconstellation_support</span>
+        <span>repo <a href="https://github.com/artistrea/sharc-ngso-throughput">artistrea/sharc-ngso-throughput</a></span>
+        <span>branch <a href="https://github.com/artistrea/sharc-ngso-throughput/tree/feat/ngso_throughput_studies">feat/ngso_throughput_studies</a></span>
         <span>formato versão 2</span>
         <span>schema: ngso2gso_params.schema.pt-BR.json</span>
       </div>
@@ -199,6 +201,26 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
       <span class="k">earth_station</span>: { label, lat_deg, lon_deg, alt_m? }</pre>
     </section>
 
+    <section id="instalacao">
+      <h2>Instalação e execução</h2>
+      <div class="prose"><p>Requer Python 3.12 ou mais recente e git. Clone a branch, crie um ambiente virtual, instale as dependências fixadas e depois instale o próprio repositório em modo editável, para que <code>import sharc</code> funcione nos scripts.</p></div>
+      <div class="codebox">
+        <button class="copy" type="button" id="copy-install" data-target="install-sh">Copiar</button>
+<pre id="install-sh">git clone --branch feat/ngso_throughput_studies https://github.com/artistrea/sharc-ngso-throughput.git
+cd sharc-ngso-throughput
+python3 -m venv .venv
+source .venv/bin/activate          <span class="c"># Windows: .venv\Scripts\activate</span>
+pip install -r requirements.txt
+pip install -e .</pre>
+      </div>
+      <div class="prose"><p>Execute a partir da raiz do repositório, passando o arquivo de parâmetros com <code>-p</code>. O exemplo mínimo abaixo leva poucos segundos:</p></div>
+      <div class="codebox">
+        <button class="copy" type="button" id="copy-run" data-target="run-sh">Copiar</button>
+<pre id="run-sh">python sharc/ngso_to_gso.py -p scenarios/ngso2gso_docs/exemplo_minimo.yaml</pre>
+      </div>
+      <div class="prose"><p>O script mostra o diretório de saída, <code>scenarios/results/&lt;timestamp&gt;/&lt;scenario_name&gt;/</code>, relativo ao diretório de onde é executado. Uma cópia do arquivo de parâmetros é salva ali junto com os resultados em parquet (veja <a href="#calculo">O que as entradas controlam</a>). Se uma execução com o mesmo <code>scenario_name</code> e arquivo de parâmetros idêntico foi interrompida, a próxima execução pergunta se deve continuá-la.</p></div>
+    </section>
+
     <section id="exemplos">
       <h2>Arquivos de exemplo</h2>
       <div class="prose"><p>Os quatro ficam nesta mesma pasta, são válidos pelo schema e carregam no simulador. Usam listas YAML simples em vez de <code>!!python/tuple</code>. Só <code>exemplo_ancoras.yaml</code> usa âncoras; os outros três podem ser lidos por qualquer leitor YAML.</p></div>
@@ -215,7 +237,7 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
 
     <section id="minimo">
       <h2>Um arquivo mínimo executável</h2>
-      <div class="prose"><p>Um sistema NGSO com uma camada, um enlace vítima em uma localidade. Valores do exemplo, com <code>max_t_s</code> reduzido para um teste rápido. Execute com <code>python sharc/ngso_to_gso.py -p &lt;arquivo&gt;.yaml</code>.</p></div>
+      <div class="prose"><p>Um sistema NGSO com uma camada, um enlace vítima em uma localidade. Valores do exemplo, com <code>max_t_s</code> reduzido para um teste rápido. Execute como em <a href="#instalacao">Instalação e execução</a>.</p></div>
       <div class="codebox">
         <button class="copy" type="button" id="copy-minimal" data-target="minimal-yaml">Copiar</button>
 <pre id="minimal-yaml">ngso2gso:
