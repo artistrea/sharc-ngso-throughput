@@ -260,4 +260,9 @@ class ParametersImtMssDc(ParametersBase):
 
         self.propagate_parameters()
 
+        if not self.orbits:
+            raise ValueError(f"{ctx}.orbits must contain at least one orbit.")
+        for i, orbit in enumerate(self.orbits):
+            orbit.validate(f"{ctx}.orbits[{i}]")
+
         super().validate(ctx)

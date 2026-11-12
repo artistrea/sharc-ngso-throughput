@@ -171,6 +171,11 @@ class ParametersMssD2d(ParametersBase):
             raise ValueError(
                 f"{ctx}.beams_load_factor must be in interval [0.0, 1.0]")
 
+        if not self.orbits:
+            raise ValueError(f"{ctx}.orbits must contain at least one orbit.")
+        for i, orbit in enumerate(self.orbits):
+            orbit.validate(f"{ctx}.orbits[{i}]")
+
         super().validate(ctx)
 
     def propagate_parameters(self):
