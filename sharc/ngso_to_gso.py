@@ -612,15 +612,23 @@ def run_simulation(
     gso_contexts = [_build_gso_link_context(gso_par) for gso_par in par.gso_links]
     es_groups = _group_contexts_by_earth_station(gso_contexts)
 
-    # Band overlap [dB] per (GSO link, NGSO system). -inf if no overlap.
+    # Band overlap [dB] per (GSO link, NGSO system). 0 dB unless
+    # ngso2gso.band_overlap is "FRACTION"; -inf if no overlap.
+    fractions = par.band_overlap_fractions()
     overlap_db: dict[str, list[float]] = {}
     for ctx in gso_contexts:
         overlap_db[ctx.label] = []
         for sys in par.ngso_systems:
-            ov = sys.band_overlap(ctx.par)
+            ov = fractions[ctx.label][sys.label]
             with np.errstate(divide="ignore"):
                 overlap_db[ctx.label].append(float(10 * np.log10(ov)))
-            print(f"[INFO] band overlap {sys.label} -> {ctx.label}: {ov:.4f}")
+            if par.band_overlap != "FULL":
+                print(
+                    f"[INFO] band overlap {sys.label} -> {ctx.label}: "
+                    f"{ov:.4f} ({overlap_db[ctx.label][-1]:.2f} dB)"
+                )
+    if par.band_overlap == "FULL":
+        print("[INFO] band_overlap: FULL, no frequency scaling applied")
 
     timeline = np.arange(par.min_t_s, par.max_t_s, par.delta_t_s)
     n_steps = len(timeline)
@@ -819,6 +827,30 @@ def create_results_writer(
     return results_writer, drops_start
 
 
+def write_band_overlap(directory: Path, par: ParametersNGSO2GSO) -> Path:
+    """
+    Save the interference scale factor applied per (GSO link, NGSO
+    system) next to the results, so it is recorded with them.
+    Only meaningful with band_overlap: FRACTION.
+    """
+    data = {
+        link: {
+            sys_label: {
+                "fraction": frac,
+                # JSON has no -inf; null means no overlap
+                "scale_dB": (
+                    float(10 * np.log10(frac)) if frac > 0 else None
+                ),
+            }
+            for sys_label, frac in per_sys.items()
+        }
+        for link, per_sys in par.band_overlap_fractions().items()
+    }
+    path = Path(directory) / "band_overlap.json"
+    path.write_text(json.dumps(data, indent=4))
+    return path
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="SHARC - Radio Sharing and Compatiblity Monte Carlo Simulator"
@@ -842,6 +874,8 @@ def main():
     results_writer, drops_ran = create_results_writer(param_file, par)
 
     print(f"Results will be saved on {results_writer.directory}")
+    if par.band_overlap == "FRACTION":
+        write_band_overlap(results_writer.directory, par)
 
     try:
         run_simulation(

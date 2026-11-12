@@ -153,6 +153,7 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
   <nav class="index" aria-label="Sections">
     <span class="label">On this page</span>
     <a href="#overview">Overview</a>
+    <a href="#install">Install and run</a>
     <a href="#minimal">Minimal file</a>
     <a href="#top-level">ngso2gso</a>
     <a class="sub" href="#ngso-systems">ngso_systems</a>
@@ -169,7 +170,8 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
       <h1>Populating NGSO-to-GSO inputs</h1>
       <p class="lede">How to fill in a parameter file for <code>sharc/ngso_to_gso.py</code>, based on the example in <code>scenarios/scenario_base.yaml</code> (USASAT-NGSO-8 into Ku/Ka-band GSO links over Las Vegas, Kansas and Miami).</p>
       <div class="meta">
-        <span>branch feat/multiconstellation_support</span>
+        <span>repo <a href="https://github.com/artistrea/sharc-ngso-throughput">artistrea/sharc-ngso-throughput</a></span>
+        <span>branch <a href="https://github.com/artistrea/sharc-ngso-throughput/tree/feat/ngso_throughput_studies">feat/ngso_throughput_studies</a></span>
         <span>format version 2</span>
         <span>schema: ngso2gso_params.schema.json</span>
       </div>
@@ -184,6 +186,7 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
   version, scenario_name, seed            <span class="c"># identity and RNG</span>
   delta_t_s, min_t_s, max_t_s, batch_size <span class="c"># time stepping</span>
   ref_bandwidth_Hz                        <span class="c"># noise and PFD reference bandwidth</span>
+  band_overlap, allow_zero_band_overlap   <span class="c"># frequency overlap scaling (off by default)</span>
   minimum_elevation, selection_strategy   <span class="c"># defaults for every NGSO system</span>
   <span class="k">ngso_systems</span>:                           <span class="c"># list: one per operator</span>
     - label, n_co_channel, gso_protection_avoidance_angle
@@ -197,6 +200,26 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
       <span class="k">earth_station</span>: { label, lat_deg, lon_deg, alt_m? }</pre>
     </section>
 
+
+    <section id="install">
+      <h2>Installation and running</h2>
+      <div class="prose"><p>Needs Python 3.12 or newer and git. Clone the branch, create a virtual environment, install the pinned dependencies, then install the repository itself in editable mode so <code>import sharc</code> works from the scripts.</p></div>
+      <div class="codebox">
+        <button class="copy" type="button" id="copy-install" data-target="install-sh">Copy</button>
+<pre id="install-sh">git clone --branch feat/ngso_throughput_studies https://github.com/artistrea/sharc-ngso-throughput.git
+cd sharc-ngso-throughput
+python3 -m venv .venv
+source .venv/bin/activate          <span class="c"># Windows: .venv\Scripts\activate</span>
+pip install -r requirements.txt
+pip install -e .</pre>
+      </div>
+      <div class="prose"><p>Run from the repository root, passing the parameter file with <code>-p</code>. The minimal example below takes a few seconds:</p></div>
+      <div class="codebox">
+        <button class="copy" type="button" id="copy-run" data-target="run-sh">Copy</button>
+<pre id="run-sh">python sharc/ngso_to_gso.py -p scenarios/ngso2gso_docs/exemplo_minimo.yaml</pre>
+      </div>
+      <div class="prose"><p>The script prints the output directory, <code>scenarios/results/&lt;timestamp&gt;/&lt;scenario_name&gt;/</code>, relative to the directory you run it from. A copy of the parameter file is saved there next to the parquet results (see <a href="#outputs">What the inputs control</a>). If a run with the same <code>scenario_name</code> and an identical parameter file was interrupted, the next run asks whether to continue it.</p></div>
+    </section>
 
     <section id="minimal">
       <h2>A minimal runnable file</h2>
@@ -263,6 +286,8 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
           <tr><td><code>max_t_s</code></td><td class="unit">s</td><td><span class="pill opt">default 1000</span></td><td class="num">1000000.0</td><td>End time; must exceed <code>min_t_s</code>. Steps = (max − min) / Δt, so the example runs 10<sup>6</sup> steps.</td></tr>
           <tr><td><code>batch_size</code></td><td class="unit">steps</td><td><span class="pill opt">default 100</span></td><td class="num">500</td><td>Steps per chunk before results are flushed to parquet. Integer ≥ 1.</td></tr>
           <tr><td><code>ref_bandwidth_Hz</code></td><td class="unit">Hz</td><td><span class="pill opt">default 1e6</span></td><td class="num">1000000</td><td>Reference bandwidth for noise power and for the NGSO PFD value.</td></tr>
+          <tr><td><code>band_overlap</code></td><td class="unit">-</td><td><span class="pill opt">default FULL</span></td><td class="num">FULL</td><td><code>FULL</code>: every NGSO system is treated as co-channel with every GSO link and no frequency scaling is applied. If NGSO systems set <code>center_freq_GHz</code>/<code>bandwidth_MHz</code>, they are ignored and a warning is printed. <code>FRACTION</code>: interference from each system into each link is multiplied by the fraction of the link's band covered by the system's band (e.g. 50 MHz inside a 250 MHz carrier gives −7 dB); every NGSO system must then set its band. The scaling is only applied when you ask for it. The factors used are printed at startup and saved to <code>band_overlap.json</code> with the results.</td></tr>
+          <tr><td><code>allow_zero_band_overlap</code></td><td class="unit">-</td><td><span class="pill opt">default false</span></td><td class="num">-</td><td>Only with <code>band_overlap: FRACTION</code>. A system whose band misses a link entirely adds no interference to it, which is usually a frequency typo, so it is rejected unless this is <code>true</code> (a warning is still printed).</td></tr>
           <tr><td><code>minimum_elevation</code></td><td class="unit">deg</td><td><span class="pill req">required</span></td><td class="num">35.0</td><td>Satellites must be strictly above this elevation, seen from the earth station, to be eligible. Systems can override it.</td></tr>
           <tr><td><code>ngso_systems</code></td><td class="unit">list</td><td><span class="pill req">required, ≥ 1</span></td><td class="num">1 system</td><td>See <a href="#ngso-systems">below</a>.</td></tr>
           <tr><td><code>gso_links</code></td><td class="unit">list</td><td><span class="pill req">required, ≥ 1</span></td><td class="num">null → 30</td><td>See <a href="#gso-links">below</a>. Must be a non-empty list; <code>scenarios/scenario_base.yaml</code> leaves it <code>null</code> for <code>scenario_generator.py</code> to fill.</td></tr>
@@ -281,8 +306,8 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
           <tr><td><code>gso_protection_avoidance_angle</code></td><td class="unit">deg</td><td><span class="pill opt">optional</span></td><td class="num">2.0</td><td>GSO arc avoidance. Satellites at or within this off-axis angle from the earth station's GSO pointing are excluded. Omit or <code>null</code> to disable.</td></tr>
           <tr><td><code>selection_strategy</code></td><td class="unit">-</td><td><span class="pill opt">inherits</span></td><td class="num">-</td><td>Overrides the top-level strategy for this system.</td></tr>
           <tr><td><code>minimum_elevation</code></td><td class="unit">deg</td><td><span class="pill opt">inherits</span></td><td class="num">-</td><td>Overrides the top-level minimum elevation.</td></tr>
-          <tr><td><code>center_freq_GHz</code></td><td class="unit">GHz</td><td><span class="pill opt">optional, pair</span></td><td class="num">-</td><td rowspan="2">Emission band. Set both or neither. Interference into each link is scaled by the fraction of the victim's band covered. If neither is set, full overlap is assumed and a warning is printed (the example triggers it).</td></tr>
-          <tr><td><code>bandwidth_MHz</code></td><td class="unit">MHz</td><td><span class="pill opt">optional, pair</span></td><td class="num">-</td></tr>
+          <tr><td><code>center_freq_GHz</code></td><td class="unit">GHz</td><td><span class="pill opt">required with FRACTION</span></td><td class="num">-</td><td rowspan="2">Emission band, as a pair. Required on every system when <code>ngso2gso.band_overlap</code> is <code>FRACTION</code>. With <code>FULL</code> it may be set, but it is ignored and a warning says so. Interference into each link is then scaled by the fraction of the victim's band covered.</td></tr>
+          <tr><td><code>bandwidth_MHz</code></td><td class="unit">MHz</td><td><span class="pill opt">required with FRACTION</span></td><td class="num">-</td></tr>
           <tr><td><code>tx_model</code></td><td class="unit">map</td><td><span class="pill opt">optional</span></td><td class="num">-</td><td>See <a href="#tx-model">tx_model</a>.</td></tr>
           <tr><td><code>orbits</code></td><td class="unit">list</td><td><span class="pill req">required, ≥ 1</span></td><td class="num">4 shells</td><td>See <a href="#orbits">orbits</a>.</td></tr>
         </tbody>
@@ -328,7 +353,7 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
         <tbody>
           <tr><td><code>label</code></td><td class="unit">-</td><td><span class="pill req">required</span></td><td class="num">Jupiter 97W GW</td><td>Link name.</td></tr>
           <tr><td><code>orbital_slot_deg</code></td><td class="unit">deg E</td><td><span class="pill req">required</span></td><td class="num">-97.1</td><td>GSO longitude, east positive (97.1° W is −97.1).</td></tr>
-          <tr><td><code>center_freq_GHz</code></td><td class="unit">GHz</td><td><span class="pill req">required</span></td><td class="num">20.075</td><td>Carrier center. Sets wavelength for the antenna pattern and propagation, and the victim band for overlap.</td></tr>
+          <tr><td><code>center_freq_GHz</code></td><td class="unit">GHz</td><td><span class="pill req">required</span></td><td class="num">20.075</td><td>Carrier center. Sets wavelength for the antenna pattern and propagation, and, with <code>band_overlap: FRACTION</code>, the center of the victim band (<code>center_freq_GHz</code> ± <code>bandwidth_MHz</code>/2; <code>downlink_freq_MHz</code> is not used).</td></tr>
           <tr><td><code>bandwidth_MHz</code></td><td class="unit">MHz</td><td><span class="pill req">required</span></td><td class="num">250.0</td><td>Carrier bandwidth. EIRP is spread over it to get C per MHz.</td></tr>
           <tr><td><code>downlink_freq_MHz</code></td><td class="unit">MHz</td><td><span class="pill opt">informational</span></td><td class="num">[19700, 20200]</td><td>Band edges for reference only; not used in the calculation. Written as <code>!!python/tuple [lo, hi]</code> in the example; a plain list works too.</td></tr>
           <tr><td><code>eirp_dBW_per_carrier</code></td><td class="unit">dBW</td><td><span class="pill req">required</span></td><td class="num">71.0</td><td>GSO satellite EIRP for the whole carrier.</td></tr>
@@ -363,6 +388,10 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
         <li><code>selection_strategy</code> is set but <code>version</code> is missing or below 2.<span class="err">ValueError: AOPASA</span></li>
         <li>The file still uses the old single-system <code>ngso2gso.ngso</code> key.<span class="err">Migrate with: python scenarios/migrate_to_ngso_systems.py &lt;file&gt;</span></li>
         <li>Only one of <code>center_freq_GHz</code> / <code>bandwidth_MHz</code> is set on an NGSO system.<span class="err">set both center_freq_GHz and bandwidth_MHz, or neither</span></li>
+        <li><code>allow_zero_band_overlap</code> is true while <code>band_overlap</code> is <code>FULL</code> (the default).<span class="err">allow_zero_band_overlap only applies when ngso2gso.band_overlap is 'FRACTION'</span></li>
+        <li class="note">An NGSO system that sets <code>center_freq_GHz</code>/<code>bandwidth_MHz</code> while <code>band_overlap</code> is <code>FULL</code> is accepted, but the band is ignored and a warning is printed: <code>NGSO systems [...] set center_freq_GHz/bandwidth_MHz, but ngso2gso.band_overlap is 'FULL', so those values are ignored</code>.</li>
+        <li><code>band_overlap</code> is <code>FRACTION</code> and an NGSO system has no band.<span class="err">every NGSO system must set center_freq_GHz and bandwidth_MHz</span></li>
+        <li><code>band_overlap</code> is <code>FRACTION</code>, a system's band does not overlap some link at all, and <code>allow_zero_band_overlap</code> is not true (load time only).<span class="err">These NGSO systems do not overlap these GSO links in frequency</span></li>
         <li>An NGSO system label contains <code>---</code>, or two systems share a label.</li>
         <li>Two GSO links share both <code>label</code> and <code>earth_station.label</code> (load time only).<span class="err">More than one GSO Earth Station has the same label</span></li>
         <li><code>max_t_s</code> ≤ <code>min_t_s</code>, or <code>apogee_alt_km</code> &lt; <code>perigee_alt_km</code> (load time only).</li>
@@ -374,8 +403,8 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
     <section id="outputs">
       <h2>What the inputs control</h2>
       <div class="prose">
-        <p>At each time step, for each GSO link, the code propagates every shell, keeps satellites above <code>minimum_elevation</code> and outside the avoidance angle, selects <code>n_co_channel</code> per system with its strategy, applies the PFD and the earth station's off-axis gain, scales by band overlap, and sums. The carrier C comes from <code>eirp_dBW_per_carrier</code> − 10·log10(<code>bandwidth_MHz</code>) + <code>peak_rx_antenna_gain</code> − <code>added_loss</code> − free-space loss − rain attenuation; noise from G/T and <code>ref_bandwidth_Hz</code>.</p>
-        <p>Results go to one parquet file per GSO link, <code>gso_per_iteration---&lt;link&gt;---&lt;earth station&gt;.parquet</code>, under <code>scenarios/results/&lt;timestamp&gt;/&lt;scenario_name&gt;/</code> (relative to where the simulation is run). Each row is one time step, with aggregate columns <code>c</code>, <code>cn</code>, <code>cni</code>, <code>i</code>, <code>epfd</code>, plus <code>i---&lt;system&gt;</code> and <code>epfd---&lt;system&gt;</code> per NGSO system, and <code>gso_rain_att</code> (rain attenuation drawn for that step, dB).</p>
+        <p>At each time step, for each GSO link, the code propagates every shell, keeps satellites above <code>minimum_elevation</code> and outside the avoidance angle, selects <code>n_co_channel</code> per system with its strategy, applies the PFD and the earth station's off-axis gain, scales by band overlap if <code>band_overlap</code> is <code>FRACTION</code>, and sums. The carrier C comes from <code>eirp_dBW_per_carrier</code> − 10·log10(<code>bandwidth_MHz</code>) + <code>peak_rx_antenna_gain</code> − <code>added_loss</code> − free-space loss − rain attenuation; noise from G/T and <code>ref_bandwidth_Hz</code>.</p>
+        <p>Results go to one parquet file per GSO link, <code>gso_per_iteration---&lt;link&gt;---&lt;earth station&gt;.parquet</code>, under <code>scenarios/results/&lt;timestamp&gt;/&lt;scenario_name&gt;/</code> (relative to where the simulation is run). Each row is one time step, with aggregate columns <code>c</code>, <code>cn</code>, <code>cni</code>, <code>i</code>, <code>epfd</code>, plus <code>i---&lt;system&gt;</code> and <code>epfd---&lt;system&gt;</code> per NGSO system, and <code>gso_rain_att</code> (rain attenuation drawn for that step, dB). With <code>band_overlap: FRACTION</code>, <code>band_overlap.json</code> in the same folder records the scale factor applied to each (link, system) pair, as a fraction and in dB (<code>null</code> dB means no overlap). It is not written with <code>FULL</code>.</p>
       </div>
     </section>
   </main>

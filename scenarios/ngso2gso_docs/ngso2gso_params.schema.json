@@ -83,6 +83,17 @@
           "default": 1000000,
           "description": "Reference bandwidth [Hz] for noise power and for the NGSO PFD (pfd_at_ref_bandwidth_dBW_m2)."
         },
+        "band_overlap": {
+          "type": "string",
+          "enum": ["FULL", "FRACTION"],
+          "default": "FULL",
+          "description": "How NGSO interference into each GSO link is scaled by frequency overlap. FULL (default): every NGSO system is co-channel with every GSO link and no scaling is applied; NGSO center_freq_GHz/bandwidth_MHz, if set, are ignored and a warning is printed. FRACTION: interference from each system into each link is multiplied by the fraction of the link's band [center_freq_GHz +/- bandwidth_MHz/2] covered by the system's band; every NGSO system must set center_freq_GHz and bandwidth_MHz. The factors applied are printed at startup and saved to band_overlap.json in the results directory."
+        },
+        "allow_zero_band_overlap": {
+          "type": "boolean",
+          "default": false,
+          "description": "Only with band_overlap: FRACTION. By default, an NGSO system whose band does not overlap a GSO link at all is rejected at load time, since it would add no interference to that link and is usually a typo in a frequency. Set to true to accept it (a warning is still printed)."
+        },
         "minimum_elevation": {
           "type": "number",
           "description": "Default minimum elevation [deg] (seen from the GSO earth station) for an NGSO satellite to be considered visible. Strictly greater-than is used. Can be overridden per NGSO system."
@@ -130,11 +141,28 @@
               ]
             }
           }
+        },
+        {
+          "$comment": "band_overlap: FRACTION requires center_freq_GHz and bandwidth_MHz on every NGSO system. Otherwise (FULL, the default) allow_zero_band_overlap must not be true; NGSO bands may be set but are ignored (the simulator warns). Load-time only: with FRACTION, zero overlap between a system and a link is rejected unless allow_zero_band_overlap is true.",
+          "if": {
+            "properties": { "band_overlap": { "const": "FRACTION" } },
+            "required": ["band_overlap"]
+          },
+          "then": {
+            "properties": {
+              "ngso_systems": { "items": { "required": ["center_freq_GHz", "bandwidth_MHz"] } }
+            }
+          },
+          "else": {
+            "properties": {
+              "allow_zero_band_overlap": { "const": false }
+            }
+          }
         }
       ]
     },
     "ngso_system": {
-      "$comment": "center_freq_GHz and bandwidth_MHz: both or neither (dependentRequired). Interference scale factor = overlap of [fc-bw/2, fc+bw/2] with the victim band / victim bandwidth.",
+      "$comment": "center_freq_GHz and bandwidth_MHz: both or neither (dependentRequired). Required when ngso2gso.band_overlap is FRACTION; ignored (with a warning) otherwise. Interference scale factor = overlap of [fc-bw/2, fc+bw/2] with the victim band / victim bandwidth.",
       "type": "object",
       "description": "One NGSO system (ParametersNGSO). All its orbits share the same n_co_channel budget.",
       "required": [
@@ -175,12 +203,12 @@
         "center_freq_GHz": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "description": "Optional emission center frequency [GHz]. Set together with bandwidth_MHz. Interference into each GSO link is scaled by the fraction of the victim's receive band covered by [fc - bw/2, fc + bw/2]. If omitted, full overlap is assumed (a warning is printed)."
+          "description": "Emission center frequency [GHz]. Required when ngso2gso.band_overlap is FRACTION; otherwise ignored, with a warning. Set together with bandwidth_MHz. Interference into each GSO link is then multiplied by the fraction of the victim's receive band covered by [fc - bw/2, fc + bw/2]."
         },
         "bandwidth_MHz": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "description": "Optional emission bandwidth [MHz]. Set together with center_freq_GHz."
+          "description": "Emission bandwidth [MHz]. Required when ngso2gso.band_overlap is FRACTION; otherwise ignored, with a warning. Set together with center_freq_GHz."
         },
         "tx_model": {
           "$ref": "#/$defs/tx_model"
@@ -336,7 +364,7 @@
         "center_freq_GHz": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "description": "Carrier center frequency [GHz]. Used for wavelength (antenna pattern, propagation) and band overlap."
+          "description": "Carrier center frequency [GHz]. Used for wavelength (antenna pattern, propagation) and, with ngso2gso.band_overlap: FRACTION, as the center of the victim band."
         },
         "bandwidth_MHz": {
           "type": "number",
