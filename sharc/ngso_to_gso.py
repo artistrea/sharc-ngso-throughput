@@ -726,7 +726,7 @@ def run_simulation(
                             ngso_geom_per_sys[k]
                         )[0]
                         selected_off_axis = _select_satellites(
-                            sys, off_axis, elevation_per_sys[k], generic_rng
+                            sys, off_axis, elevation_per_sys[k], step_rng
                         )
                         interf_pow_per_system[sys.label] = (
                             _compute_system_interference(
