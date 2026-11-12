@@ -1,0 +1,51 @@
+# Exemplo mínimo de entrada para sharc/ngso_to_gso.py
+# Execução: python sharc/ngso_to_gso.py -p scenarios/ngso2gso_docs/exemplo_minimo.yaml
+#
+# Um sistema NGSO com uma única camada orbital e um único enlace GSO vítima
+# em uma única localidade. Valores retirados de scenarios/scenario_base.yaml;
+# max_t_s foi reduzido para um teste rápido.
+
+ngso2gso:
+  version: 2                 # >= 2 para poder definir selection_strategy
+  scenario_name: teste_rapido
+  seed: 125
+  delta_t_s: 1.0             # passo de tempo [s]
+  min_t_s: 0.0               # início [s]
+  max_t_s: 1000.0            # fim [s] -> 1000 passos
+  batch_size: 500            # passos por bloco antes de gravar resultados
+  ref_bandwidth_Hz: 1000000  # banda de referência do ruído e da PFD [Hz]
+  minimum_elevation: 35.0    # elevação mínima para o satélite ser elegível [graus]
+  selection_strategy: RAND   # RAND | MAX_ELEV | WC
+
+  ngso_systems:
+    - label: USASAT-NGSO-8
+      n_co_channel: 8                      # Nco
+      gso_protection_avoidance_angle: 2.0  # evitação do arco GSO [graus]
+      tx_model:
+        model: CONSTANT_PFD_AT_GND
+        pfd_at_ref_bandwidth_dBW_m2: -115.0
+      orbits:
+        - n_planes: 289
+          sats_per_plane: 4
+          inclination_deg: 51.9
+          perigee_alt_km: 630.0
+          apogee_alt_km: 630.0
+          phasing_deg: 71.09
+
+  gso_links:
+    - label: Jupiter 97W GW
+      orbital_slot_deg: -97.1          # 97,1 W (leste positivo)
+      center_freq_GHz: 20.075
+      downlink_freq_MHz: [19700, 20200]  # apenas informativo
+      bandwidth_MHz: 250.0
+      eirp_dBW_per_carrier: 71.0
+      peak_rx_antenna_gain: 62.0       # dBi
+      rx_antenna_size_m: 6.3
+      g_over_t_dB_per_K: 38.0
+      station_type: GW                 # GW (gateway) | CT (terminal de usuário)
+      added_loss: 3.0                  # perda adicional na portadora [dB]
+      earth_station:
+        label: Miami
+        lat_deg: 25.77
+        lon_deg: -80.19
+        # alt_m omitido: obtido de dados topográficos ITU-R

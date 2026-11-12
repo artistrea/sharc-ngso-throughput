@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guia de Entradas NGSO-GSO</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Layout: single reading column with a sticky left index on wide screens; field tables scroll on their own. */
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --ink: #18212b;
+  --muted: #5a6876;
+  --line: #d7dee5;
+  --accent: #0b6b8a;
+  --accent-soft: #e2f0f5;
+  --req: #9a3412;
+  --req-soft: #fdeee4;
+  --code-bg: #eef2f5;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11171d;
+    --surface: #18212a;
+    --ink: #e3e9ee;
+    --muted: #93a3b1;
+    --line: #2b3742;
+    --accent: #5cc0de;
+    --accent-soft: #15323d;
+    --req: #f2a07a;
+    --req-soft: #3a2219;
+    --code-bg: #0d1318;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11171d;
+  --surface: #18212a;
+  --ink: #e3e9ee;
+  --muted: #93a3b1;
+  --line: #2b3742;
+  --accent: #5cc0de;
+  --accent-soft: #15323d;
+  --req: #f2a07a;
+  --req-soft: #3a2219;
+  --code-bg: #0d1318;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.6 var(--font-body);
+}
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code, pre { font-family: var(--font-mono); font-size: 0.875em; }
+:not(pre) > code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; }
+
+.shell {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 48px;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+nav.index {
+  position: sticky; top: 24px; align-self: start;
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 0.875rem;
+}
+nav.index .label { font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-size: 0.75rem; margin-bottom: 6px; }
+nav.index a { color: var(--muted); text-decoration: none; padding: 3px 0 3px 10px; border-left: 2px solid var(--line); }
+nav.index a:hover { color: var(--accent); border-left-color: var(--accent); }
+nav.index a.sub { padding-left: 22px; }
+
+main { display: flex; flex-direction: column; gap: 56px; min-width: 0; }
+section { display: flex; flex-direction: column; gap: 16px; }
+.prose { max-width: 68ch; }
+.prose p { margin: 0; }
+.prose > * + * { margin-top: 12px; }
+
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.2; }
+h1 { font-size: 2.25rem; font-weight: 600; }
+h2 { font-size: 1.5rem; font-weight: 600; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.125rem; font-weight: 600; }
+h2 code, h3 code { font-size: 0.85em; background: none; padding: 0; color: var(--accent); }
+.lede { color: var(--muted); font-size: 1.0625rem; max-width: 68ch; margin: 0; }
+.meta { font-family: var(--font-mono); font-size: 0.8125rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 20px; }
+
+.tree {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 16px 20px; overflow-x: auto; margin: 0; line-height: 1.55;
+}
+.tree .k { color: var(--accent); }
+.tree .c { color: var(--muted); }
+
+.codebox { position: relative; }
+.codebox pre {
+  background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+  padding: 16px 20px; margin: 0; overflow-x: auto; line-height: 1.5;
+}
+.codebox pre .c { color: var(--muted); }
+.copy {
+  position: absolute; top: 10px; right: 10px;
+  font: 500 0.8125rem var(--font-body);
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer;
+}
+.copy:hover { border-color: var(--accent); color: var(--accent); }
+
+
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+th { font-family: var(--font-display); font-weight: 600; font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); background: var(--bg); }
+td:first-child { white-space: nowrap; }
+td:first-child code { background: none; padding: 0; font-weight: 500; }
+td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.unit { color: var(--muted); font-family: var(--font-mono); font-size: 0.8125rem; white-space: nowrap; }
+.pill { display: inline-block; font-size: 0.75rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.pill.req { color: var(--req); background: var(--req-soft); }
+.pill.opt { color: var(--accent); background: var(--accent-soft); }
+
+.rules { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; max-width: 80ch; }
+.rules li { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--req); border-radius: 6px; padding: 10px 14px; font-size: 0.9375rem; }
+.rules li.note { border-left-color: var(--accent); }
+.rules .err { display: block; margin-top: 4px; font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted); }
+
+@media (max-width: 860px) {
+  .shell { grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 24px 16px 64px; }
+  nav.index { position: static; flex-direction: row; flex-wrap: wrap; gap: 4px 12px; }
+  nav.index .label { width: 100%; }
+  nav.index a, nav.index a.sub { border-left: 0; padding: 0; }
+  h1 { font-size: 1.75rem; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="index" aria-label="Seções">
+    <span class="label">Nesta página</span>
+    <a href="#visao-geral">Visão geral</a>
+    <a href="#exemplos">Arquivos de exemplo</a>
+    <a href="#minimo">Arquivo mínimo</a>
+    <a href="#nivel-superior">ngso2gso</a>
+    <a class="sub" href="#ngso-systems">ngso_systems</a>
+    <a class="sub" href="#tx-model">tx_model</a>
+    <a class="sub" href="#orbits">orbits</a>
+    <a class="sub" href="#gso-links">gso_links</a>
+    <a class="sub" href="#earth-station">earth_station</a>
+    <a href="#regras">Regras de validação</a>
+    <a href="#calculo">O que as entradas controlam</a>
+  </nav>
+
+  <main>
+    <header class="prose" style="display:flex;flex-direction:column;gap:12px">
+      <h1>Como preencher as entradas NGSO-para-GSO</h1>
+      <p class="lede">Como montar um arquivo de parâmetros para <code>sharc/ngso_to_gso.py</code>, a partir do exemplo em <code>scenarios/scenario_base.yaml</code> (USASAT-NGSO-8 interferindo em enlaces GSO em banda Ka sobre Las Vegas, Kansas e Miami).</p>
+      <div class="meta">
+        <span>branch feat/multiconstellation_support</span>
+        <span>formato versão 2</span>
+        <span>schema: ngso2gso_params.schema.pt-BR.json</span>
+      </div>
+    </header>
+
+    <section id="visao-geral">
+      <h2>Visão geral</h2>
+      <div class="prose">
+        <p>O simulador lê apenas a seção <code>ngso2gso</code> do arquivo YAML. As demais chaves de nível superior são ignoradas, e por isso o exemplo guarda definições reutilizáveis de enlaces e localidades em <code>gso_links_helpers</code>, como âncoras YAML. Dentro de <code>ngso2gso</code>, qualquer chave desconhecida interrompe a execução com <code>The parameter … was passed, but it doesn't exist on parameters definitions!</code></p>
+        <p>Chaves e valores enumerados (<code>RAND</code>, <code>GW</code>, <code>CONSTANT_PFD_AT_GND</code>…) ficam em inglês, como o código espera.</p>
+      </div>
+<pre class="tree"><span class="k">ngso2gso</span>:
+  version, scenario_name, seed            <span class="c"># identificação e gerador aleatório</span>
+  delta_t_s, min_t_s, max_t_s, batch_size <span class="c"># passos de tempo</span>
+  ref_bandwidth_Hz                        <span class="c"># banda de referência de ruído e PFD</span>
+  minimum_elevation, selection_strategy   <span class="c"># padrões para todos os sistemas NGSO</span>
+  <span class="k">ngso_systems</span>:                           <span class="c"># lista: um por operador</span>
+    - label, n_co_channel, gso_protection_avoidance_angle
+      selection_strategy?, minimum_elevation?, center_freq_GHz?, bandwidth_MHz?
+      <span class="k">tx_model</span>: { model, pfd_at_ref_bandwidth_dBW_m2 }
+      <span class="k">orbits</span>:                             <span class="c"># lista: uma por camada orbital</span>
+        - n_planes, sats_per_plane, inclination_deg, perigee_alt_km, apogee_alt_km, phasing_deg, …
+  <span class="k">gso_links</span>:                              <span class="c"># lista: um por enlace vítima × localidade</span>
+    - label, orbital_slot_deg, center_freq_GHz, bandwidth_MHz, eirp_dBW_per_carrier,
+      peak_rx_antenna_gain, rx_antenna_size_m, g_over_t_dB_per_K, station_type, added_loss
+      <span class="k">earth_station</span>: { label, lat_deg, lon_deg, alt_m? }</pre>
+    </section>
+
+    <section id="exemplos">
+      <h2>Arquivos de exemplo</h2>
+      <div class="prose"><p>Os três ficam nesta mesma pasta, são válidos pelo schema e carregam no simulador. Usam listas YAML simples em vez de <code>!!python/tuple</code> e não usam âncoras, para que qualquer leitor YAML os aceite.</p></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Arquivo</th><th>Conteúdo</th></tr></thead>
+        <tbody>
+          <tr><td><code>exemplo_minimo.yaml</code></td><td>Um sistema, uma camada orbital, um enlace em uma localidade. 1000 passos. É o arquivo mostrado abaixo.</td></tr>
+          <tr><td><code>exemplo_completo.yaml</code></td><td>O cenário de <code>scenario_base.yaml</code> com as quatro camadas do USASAT-NGSO-8 e quatro enlaces GSO em três localidades, já com <code>gso_links</code> preenchido. 10<sup>6</sup> passos.</td></tr>
+          <tr><td><code>exemplo_multiplos_sistemas.yaml</code></td><td>Dois sistemas NGSO, o segundo fictício, com <code>selection_strategy</code>, <code>minimum_elevation</code> e banda de emissão definidos por sistema. Os comentários mostram a conta da sobreposição de banda.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="minimo">
+      <h2>Um arquivo mínimo executável</h2>
+      <div class="prose"><p>Um sistema NGSO com uma camada, um enlace vítima em uma localidade. Valores do exemplo, com <code>max_t_s</code> reduzido para um teste rápido. Execute com <code>python sharc/ngso_to_gso.py -p &lt;arquivo&gt;.yaml</code>.</p></div>
+      <div class="codebox">
+        <button class="copy" type="button" id="copy-minimal" data-target="minimal-yaml">Copiar</button>
+<pre id="minimal-yaml">ngso2gso:
+  version: 2
+  scenario_name: teste_rapido
+  seed: 125
+  delta_t_s: 1.0
+  min_t_s: 0.0
+  max_t_s: 1000.0
+  batch_size: 500
+  ref_bandwidth_Hz: 1000000
+  minimum_elevation: 35.0
+  selection_strategy: RAND
+
+  ngso_systems:
+    - label: USASAT-NGSO-8
+      n_co_channel: 8
+      gso_protection_avoidance_angle: 2.0
+      tx_model:
+        model: CONSTANT_PFD_AT_GND
+        pfd_at_ref_bandwidth_dBW_m2: -115.0
+      orbits:
+        - n_planes: 289
+          sats_per_plane: 4
+          inclination_deg: 51.9
+          perigee_alt_km: 630.0
+          apogee_alt_km: 630.0
+          phasing_deg: 71.09
+
+  gso_links:
+    - label: Jupiter 97W GW
+      orbital_slot_deg: -97.1
+      center_freq_GHz: 20.075
+      downlink_freq_MHz: [19700, 20200]
+      bandwidth_MHz: 250.0
+      eirp_dBW_per_carrier: 71.0
+      peak_rx_antenna_gain: 62.0
+      rx_antenna_size_m: 6.3
+      g_over_t_dB_per_K: 38.0
+      station_type: GW
+      added_loss: 3.0
+      earth_station:
+        label: Miami
+        lat_deg: 25.77
+        lon_deg: -80.19</pre>
+      </div>
+    </section>
+
+    <section id="nivel-superior">
+      <h2>Campos de nível superior de <code>ngso2gso</code></h2>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Chave</th><th>Unidade</th><th>Situação</th><th>Exemplo</th><th>Significado</th></tr></thead>
+        <tbody>
+          <tr><td><code>version</code></td><td class="unit">-</td><td><span class="pill opt">padrão 1</span></td><td class="num">2.0</td><td>Use 2 para poder escolher <code>selection_strategy</code>. Abaixo de 2, definir a estratégia é erro e RAND é usado.</td></tr>
+          <tr><td><code>scenario_name</code></td><td class="unit">-</td><td><span class="pill req">obrigatório</span></td><td class="num">scenario3_again</td><td>Nomeia a pasta de resultados <code>scenarios/results/&lt;timestamp&gt;/&lt;scenario_name&gt;</code> e identifica a execução para retomada.</td></tr>
+          <tr><td><code>selection_strategy</code></td><td class="unit">-</td><td><span class="pill req">obrigatório se version ≥ 2</span></td><td class="num">RAND</td><td>Padrão para todos os sistemas. <code>RAND</code> sorteia entre os satélites elegíveis, <code>MAX_ELEV</code> pega os de maior elevação, <code>WC</code> os de menor ângulo fora do eixo em relação ao feixe GSO (pior caso).</td></tr>
+          <tr><td><code>seed</code></td><td class="unit">-</td><td><span class="pill opt">padrão 1251</span></td><td class="num">125</td><td>Semente principal; os geradores de cada passo derivam dela.</td></tr>
+          <tr><td><code>delta_t_s</code></td><td class="unit">s</td><td><span class="pill opt">padrão 1.0</span></td><td class="num">1.0</td><td>Passo de tempo. Deve ser &gt; 0.</td></tr>
+          <tr><td><code>min_t_s</code></td><td class="unit">s</td><td><span class="pill opt">padrão 0.0</span></td><td class="num">0.0</td><td>Instante inicial.</td></tr>
+          <tr><td><code>max_t_s</code></td><td class="unit">s</td><td><span class="pill opt">padrão 1000</span></td><td class="num">1000000.0</td><td>Instante final; deve ser maior que <code>min_t_s</code>. Passos = (max − min) / Δt, então o exemplo roda 10<sup>6</sup> passos.</td></tr>
+          <tr><td><code>batch_size</code></td><td class="unit">passos</td><td><span class="pill opt">padrão 100</span></td><td class="num">500</td><td>Passos por bloco antes de gravar os resultados em parquet. Inteiro ≥ 1.</td></tr>
+          <tr><td><code>ref_bandwidth_Hz</code></td><td class="unit">Hz</td><td><span class="pill opt">padrão 1e6</span></td><td class="num">1000000</td><td>Banda de referência para a potência de ruído e para o valor de PFD do NGSO.</td></tr>
+          <tr><td><code>minimum_elevation</code></td><td class="unit">graus</td><td><span class="pill req">obrigatório</span></td><td class="num">35.0</td><td>O satélite precisa estar estritamente acima desta elevação, vista da estação terrena, para ser elegível. Pode ser sobrescrita por sistema.</td></tr>
+          <tr><td><code>ngso_systems</code></td><td class="unit">lista</td><td><span class="pill req">obrigatório, ≥ 1</span></td><td class="num">1 sistema</td><td>Veja <a href="#ngso-systems">abaixo</a>.</td></tr>
+          <tr><td><code>gso_links</code></td><td class="unit">lista</td><td><span class="pill req">obrigatório, ≥ 1</span></td><td class="num">null → 30</td><td>Veja <a href="#gso-links">abaixo</a>. Precisa ser uma lista não vazia; <code>scenarios/scenario_base.yaml</code> o deixa <code>null</code> para o <code>scenario_generator.py</code> preencher.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="ngso-systems">
+      <h3><code>ngso_systems[]</code>: um item por operador NGSO</h3>
+      <div class="prose"><p>Cada sistema escolhe seus próprios <code>n_co_channel</code> satélites a cada passo, de forma independente, compartilhados entre todas as suas camadas. A interferência de todos os sistemas é somada em potência na estação terrena, e os resultados também recebem colunas por sistema <code>i---&lt;label&gt;</code> e <code>epfd---&lt;label&gt;</code>.</p></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Chave</th><th>Unidade</th><th>Situação</th><th>Exemplo</th><th>Significado</th></tr></thead>
+        <tbody>
+          <tr><td><code>label</code></td><td class="unit">-</td><td><span class="pill req">obrigatório</span></td><td class="num">USASAT-NGSO-8</td><td>Único entre os sistemas; não pode conter <code>---</code>.</td></tr>
+          <tr><td><code>n_co_channel</code></td><td class="unit">satélites</td><td><span class="pill req">obrigatório</span></td><td class="num">8</td><td>Nco: satélites co-frequência deste sistema iluminando a região. Inteiro ≥ 1. Se houver menos elegíveis, todos os elegíveis são usados.</td></tr>
+          <tr><td><code>gso_protection_avoidance_angle</code></td><td class="unit">graus</td><td><span class="pill opt">opcional</span></td><td class="num">2.0</td><td>Evitação do arco GSO. Satélites com ângulo fora do eixo, em relação ao apontamento da estação para o GSO, menor ou igual a este valor são excluídos. Omita ou use <code>null</code> para desativar.</td></tr>
+          <tr><td><code>selection_strategy</code></td><td class="unit">-</td><td><span class="pill opt">herda</span></td><td class="num">-</td><td>Sobrescreve a estratégia de nível superior para este sistema.</td></tr>
+          <tr><td><code>minimum_elevation</code></td><td class="unit">graus</td><td><span class="pill opt">herda</span></td><td class="num">-</td><td>Sobrescreve a elevação mínima de nível superior.</td></tr>
+          <tr><td><code>center_freq_GHz</code></td><td class="unit">GHz</td><td><span class="pill opt">opcional, em par</span></td><td class="num">-</td><td rowspan="2">Banda de emissão. Defina os dois ou nenhum. A interferência em cada enlace é multiplicada pela fração da banda da vítima coberta. Sem eles, assume-se sobreposição total e o simulador emite um aviso (o exemplo base gera esse aviso).</td></tr>
+          <tr><td><code>bandwidth_MHz</code></td><td class="unit">MHz</td><td><span class="pill opt">opcional, em par</span></td><td class="num">-</td></tr>
+          <tr><td><code>tx_model</code></td><td class="unit">mapa</td><td><span class="pill opt">opcional</span></td><td class="num">-</td><td>Veja <a href="#tx-model">tx_model</a>.</td></tr>
+          <tr><td><code>orbits</code></td><td class="unit">lista</td><td><span class="pill req">obrigatório, ≥ 1</span></td><td class="num">4 camadas</td><td>Veja <a href="#orbits">orbits</a>.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="tx-model">
+      <h3><code>tx_model</code></h3>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Chave</th><th>Unidade</th><th>Situação</th><th>Exemplo</th><th>Significado</th></tr></thead>
+        <tbody>
+          <tr><td><code>model</code></td><td class="unit">-</td><td><span class="pill opt">padrão</span></td><td class="num">CONSTANT_PFD_AT_GND</td><td>Único modelo implementado. Todo satélite selecionado entrega a mesma PFD na estação terrena.</td></tr>
+          <tr><td><code>pfd_at_ref_bandwidth_dBW_m2</code></td><td class="unit">dBW/m² na banda de ref.</td><td><span class="pill opt">padrão −113</span></td><td class="num">-115.0</td><td>PFD no solo por <code>ref_bandwidth_Hz</code>.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="orbits">
+      <h3><code>orbits[]</code>: um item por camada orbital</h3>
+      <div class="prose"><p>O exemplo tem quatro camadas, tiradas das submissões USASAT-NGSO-8A/B/C (289×4 a 630 km e 51,9°, 1×2 a 590 km e 30°, 1292×1 a 610 km e 42°, 782×1 a 590 km e 33°). Todo campo tem valor padrão, então uma chave esquecida vira silenciosamente a camada padrão (8×6 a 1414 km, 52°). Defina as seis primeiras explicitamente.</p></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Chave</th><th>Unidade</th><th>Padrão</th><th>Exemplo</th><th>Significado</th></tr></thead>
+        <tbody>
+          <tr><td><code>n_planes</code></td><td class="unit">-</td><td class="num">8</td><td class="num">289</td><td>Número de planos orbitais.</td></tr>
+          <tr><td><code>sats_per_plane</code></td><td class="unit">-</td><td class="num">6</td><td class="num">4</td><td>Satélites em cada plano.</td></tr>
+          <tr><td><code>inclination_deg</code></td><td class="unit">graus</td><td class="num">52.0</td><td class="num">51.9</td><td>De 0 a 180.</td></tr>
+          <tr><td><code>perigee_alt_km</code></td><td class="unit">km</td><td class="num">1414.0</td><td class="num">630.0</td><td>≥ 0.</td></tr>
+          <tr><td><code>apogee_alt_km</code></td><td class="unit">km</td><td class="num">1414.0</td><td class="num">630.0</td><td>≥ perigeu. Valores iguais dão órbita circular.</td></tr>
+          <tr><td><code>phasing_deg</code></td><td class="unit">graus</td><td class="num">7.5</td><td class="num">71.09</td><td>Defasagem entre planos, de 0 a 360. Irrelevante quando <code>n_planes</code> é 1.</td></tr>
+          <tr><td><code>long_asc_deg</code></td><td class="unit">graus</td><td class="num">0.0</td><td class="num">-</td><td>Longitude do nó ascendente do primeiro plano.</td></tr>
+          <tr><td><code>omega_deg</code></td><td class="unit">graus</td><td class="num">0.0</td><td class="num">-</td><td>Argumento do perigeu.</td></tr>
+          <tr><td><code>initial_mean_anomaly</code></td><td class="unit">graus</td><td class="num">0.0</td><td class="num">-</td><td>Anomalia média em t = 0.</td></tr>
+          <tr><td><code>model_time_as_random_variable</code>, <code>t_min</code>, <code>t_max</code></td><td class="unit">-</td><td class="num">false</td><td class="num">-</td><td>Não usados por este simulador, que sempre avança o tempo passo a passo. Deixe de fora; <code>t_min</code>/<code>t_max</code> são rejeitados se a flag não for true.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="gso-links">
+      <h3><code>gso_links[]</code>: um item por enlace vítima e localidade</h3>
+      <div class="prose"><p>O mesmo enlace pode aparecer várias vezes com estações terrenas diferentes; o par <code>label</code> + <code>earth_station.label</code> deve ser único, pois os resultados são nomeados <code>&lt;label&gt;---&lt;estação&gt;</code>.</p></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Chave</th><th>Unidade</th><th>Situação</th><th>Exemplo</th><th>Significado</th></tr></thead>
+        <tbody>
+          <tr><td><code>label</code></td><td class="unit">-</td><td><span class="pill req">obrigatório</span></td><td class="num">Jupiter 97W GW</td><td>Nome do enlace.</td></tr>
+          <tr><td><code>orbital_slot_deg</code></td><td class="unit">graus L</td><td><span class="pill req">obrigatório</span></td><td class="num">-97.1</td><td>Longitude do GSO, leste positivo (97,1° O é −97.1).</td></tr>
+          <tr><td><code>center_freq_GHz</code></td><td class="unit">GHz</td><td><span class="pill req">obrigatório</span></td><td class="num">20.075</td><td>Centro da portadora. Define o comprimento de onda para o diagrama de antena e a propagação, e a banda da vítima para a sobreposição.</td></tr>
+          <tr><td><code>bandwidth_MHz</code></td><td class="unit">MHz</td><td><span class="pill req">obrigatório</span></td><td class="num">250.0</td><td>Largura da portadora. A EIRP é distribuída nela para obter C por MHz.</td></tr>
+          <tr><td><code>downlink_freq_MHz</code></td><td class="unit">MHz</td><td><span class="pill opt">informativo</span></td><td class="num">[19700, 20200]</td><td>Limites da banda, só para referência; não entram no cálculo. No exemplo base aparece como <code>!!python/tuple [inf, sup]</code>; lista simples também funciona.</td></tr>
+          <tr><td><code>eirp_dBW_per_carrier</code></td><td class="unit">dBW</td><td><span class="pill req">obrigatório</span></td><td class="num">71.0</td><td>EIRP do satélite GSO na portadora inteira.</td></tr>
+          <tr><td><code>peak_rx_antenna_gain</code></td><td class="unit">dBi</td><td><span class="pill req">obrigatório</span></td><td class="num">62.0</td><td>Ganho máximo da estação terrena.</td></tr>
+          <tr><td><code>rx_antenna_size_m</code></td><td class="unit">m</td><td><span class="pill req">obrigatório</span></td><td class="num">6.3</td><td>Diâmetro da antena; define o ganho fora do eixo via D/λ.</td></tr>
+          <tr><td><code>g_over_t_dB_per_K</code></td><td class="unit">dB/K</td><td><span class="pill req">obrigatório</span></td><td class="num">38.0</td><td>G/T da estação; a temperatura de ruído é obtida dele e do ganho máximo.</td></tr>
+          <tr><td><code>station_type</code></td><td class="unit">-</td><td><span class="pill req">obrigatório</span></td><td class="num">GW</td><td><code>GW</code> (gateway) ou <code>CT</code> (terminal de usuário). Apenas rótulo.</td></tr>
+          <tr><td><code>added_loss</code></td><td class="unit">dB</td><td><span class="pill opt">padrão 0</span></td><td class="num">3.0</td><td>Perda adicional aplicada à portadora desejada. O gerador usa 3 dB.</td></tr>
+          <tr><td><code>earth_station</code></td><td class="unit">mapa</td><td><span class="pill req">obrigatório</span></td><td class="num">-</td><td>Veja <a href="#earth-station">earth_station</a>.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="earth-station">
+      <h3><code>earth_station</code></h3>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Chave</th><th>Unidade</th><th>Situação</th><th>Exemplo</th><th>Significado</th></tr></thead>
+        <tbody>
+          <tr><td><code>label</code></td><td class="unit">-</td><td><span class="pill req">obrigatório</span></td><td class="num">Miami</td><td>Nome da localidade.</td></tr>
+          <tr><td><code>lat_deg</code></td><td class="unit">graus N</td><td><span class="pill req">obrigatório</span></td><td class="num">25.77</td><td>Latitude.</td></tr>
+          <tr><td><code>lon_deg</code></td><td class="unit">graus L</td><td><span class="pill req">obrigatório</span></td><td class="num">-80.19</td><td>Longitude.</td></tr>
+          <tr><td><code>alt_m</code></td><td class="unit">m</td><td><span class="pill opt">opcional</span></td><td class="num">-</td><td>Se omitida, é obtida dos dados topográficos ITU-R durante a execução.</td></tr>
+        </tbody>
+      </table></div>
+      <div class="prose"><p>As localidades do exemplo são Las Vegas (36,19, −115,18), Kansas (39,07, −94,60) e Miami (25,77, −80,19).</p></div>
+    </section>
+
+    <section id="regras">
+      <h2>Regras de validação</h2>
+      <div class="prose"><p>O JSON schema cobre a maioria delas. As marcadas "só ao carregar" comparam campos entre si e são verificadas por <code>validate()</code> quando o arquivo é carregado.</p></div>
+      <ul class="rules">
+        <li><code>selection_strategy</code> definido com <code>version</code> ausente ou menor que 2.<span class="err">ValueError: AOPASA</span></li>
+        <li>O arquivo ainda usa a chave antiga de sistema único <code>ngso2gso.ngso</code>.<span class="err">Migrate with: python scenarios/migrate_to_ngso_systems.py &lt;arquivo&gt;</span></li>
+        <li>Apenas um de <code>center_freq_GHz</code> / <code>bandwidth_MHz</code> definido em um sistema NGSO.<span class="err">set both center_freq_GHz and bandwidth_MHz, or neither</span></li>
+        <li>Label de sistema NGSO contendo <code>---</code>, ou dois sistemas com o mesmo label.</li>
+        <li>Dois enlaces GSO com o mesmo <code>label</code> e o mesmo <code>earth_station.label</code> (só ao carregar).<span class="err">More than one GSO Earth Station has the same label</span></li>
+        <li><code>max_t_s</code> ≤ <code>min_t_s</code>, ou <code>apogee_alt_km</code> &lt; <code>perigee_alt_km</code> (só ao carregar).</li>
+        <li><code>gso_links</code> <code>null</code> ou vazio, que é o estado do arquivo base versionado.</li>
+        <li class="note">Em campos de ponto flutuante, <code>2</code> e <code>2.0</code> são aceitos. Campos inteiros (<code>n_co_channel</code>, <code>n_planes</code>, <code>sats_per_plane</code>, <code>batch_size</code>, <code>seed</code>) devem ser escritos sem ponto decimal. Use ponto, não vírgula, como separador decimal no YAML.</li>
+      </ul>
+    </section>
+
+    <section id="calculo">
+      <h2>O que as entradas controlam</h2>
+      <div class="prose">
+        <p>A cada passo de tempo, para cada enlace GSO, o código propaga todas as camadas, mantém os satélites acima de <code>minimum_elevation</code> e fora do ângulo de evitação, escolhe <code>n_co_channel</code> por sistema com a estratégia dele, aplica a PFD e o ganho fora do eixo da estação terrena, pondera pela sobreposição de banda e soma. A portadora C vem de <code>eirp_dBW_per_carrier</code> − 10·log10(<code>bandwidth_MHz</code>) + <code>peak_rx_antenna_gain</code> − <code>added_loss</code> − perda de espaço livre − atenuação por chuva; o ruído, do G/T e de <code>ref_bandwidth_Hz</code>.</p>
+        <p>Os resultados vão para um arquivo parquet por enlace GSO, <code>gso_per_iteration---&lt;enlace&gt;---&lt;estação terrena&gt;.parquet</code>, em <code>scenarios/results/&lt;timestamp&gt;/&lt;scenario_name&gt;/</code> (relativo ao diretório onde a simulação é executada). Cada linha é um passo de tempo, com as colunas agregadas <code>c</code>, <code>cn</code>, <code>cni</code>, <code>i</code>, <code>epfd</code>, mais <code>i---&lt;sistema&gt;</code> e <code>epfd---&lt;sistema&gt;</code> por sistema NGSO, e <code>gso_rain_att</code> (atenuação por chuva sorteada para o passo, em dB).</p>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+document.querySelectorAll("button.copy").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    var text = document.getElementById(btn.dataset.target).textContent;
+    var done = function (msg) { btn.textContent = msg; setTimeout(function () { btn.textContent = "Copiar"; }, 1600); };
+    try {
+      navigator.clipboard.writeText(text).then(function () { done("Copiado"); }, function () { done("Cópia bloqueada"); });
+    } catch (e) { done("Cópia bloqueada"); }
+  });
+});
+</script>
+</body>
+</html>
