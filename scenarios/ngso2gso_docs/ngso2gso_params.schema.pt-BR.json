@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sharc.local/schemas/ngso2gso_params.schema.pt-BR.json",
-  "$comment": "Estrutura: ngso2gso -> ngso_systems[] (-> tx_model, orbits[]) e gso_links[] (-> earth_station). Significado e unidade de cada campo estão em 'description'. As entradas '$comment' listam regras que o JSON Schema não consegue expressar; o simulador as verifica ao carregar o arquivo. Arquivos de exemplo: exemplo_minimo.yaml, exemplo_completo.yaml, exemplo_multiplos_sistemas.yaml.",
+  "$comment": "Estrutura: ngso2gso -> ngso_systems[] (-> tx_model, orbits[]) e gso_links[] (-> earth_station). Significado e unidade de cada campo estão em 'description'. As entradas '$comment' listam regras que o JSON Schema não consegue expressar; o simulador as verifica ao carregar o arquivo. Arquivos de exemplo: exemplo_minimo.yaml, exemplo_completo.yaml, exemplo_multiplos_sistemas.yaml, exemplo_ancoras.yaml (igual ao exemplo_completo.yaml, escrito com âncoras YAML e merge keys).",
   "title": "Arquivo de parâmetros NGSO-para-GSO do SHARC",
   "description": "Entrada de sharc/ngso_to_gso.py (python sharc/ngso_to_gso.py -p <arquivo>.yaml). O simulador lê apenas a seção 'ngso2gso'; outras chaves de nível superior (por exemplo 'gso_links_helpers', usada para âncoras YAML) são ignoradas. Espelha sharc/parameters/parameters_ngso_to_gso.py.",
   "type": "object",

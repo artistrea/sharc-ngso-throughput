@@ -1,5 +1,5 @@
 {
-  "$comment": "Structure: ngso2gso -> ngso_systems[] (-> tx_model, orbits[]) and gso_links[] (-> earth_station). Field meanings and units are in each 'description'. '$comment' entries list rules that JSON Schema cannot express; the simulator checks them when loading the file. Example files: exemplo_minimo.yaml, exemplo_completo.yaml, exemplo_multiplos_sistemas.yaml.",
+  "$comment": "Structure: ngso2gso -> ngso_systems[] (-> tx_model, orbits[]) and gso_links[] (-> earth_station). Field meanings and units are in each 'description'. '$comment' entries list rules that JSON Schema cannot express; the simulator checks them when loading the file. Example files: exemplo_minimo.yaml, exemplo_completo.yaml, exemplo_multiplos_sistemas.yaml, exemplo_ancoras.yaml (same as exemplo_completo.yaml, written with YAML anchors and merge keys).",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sharc.local/schemas/ngso2gso_params.schema.json",
   "title": "SHARC NGSO-to-GSO parameter file",

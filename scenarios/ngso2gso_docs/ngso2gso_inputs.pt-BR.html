@@ -201,13 +201,14 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
 
     <section id="exemplos">
       <h2>Arquivos de exemplo</h2>
-      <div class="prose"><p>Os três ficam nesta mesma pasta, são válidos pelo schema e carregam no simulador. Usam listas YAML simples em vez de <code>!!python/tuple</code> e não usam âncoras, para que qualquer leitor YAML os aceite.</p></div>
+      <div class="prose"><p>Os quatro ficam nesta mesma pasta, são válidos pelo schema e carregam no simulador. Usam listas YAML simples em vez de <code>!!python/tuple</code>. Só <code>exemplo_ancoras.yaml</code> usa âncoras; os outros três podem ser lidos por qualquer leitor YAML.</p></div>
       <div class="tablewrap"><table>
         <thead><tr><th>Arquivo</th><th>Conteúdo</th></tr></thead>
         <tbody>
           <tr><td><code>exemplo_minimo.yaml</code></td><td>Um sistema, uma camada orbital, um enlace em uma localidade. 1000 passos. É o arquivo mostrado abaixo.</td></tr>
           <tr><td><code>exemplo_completo.yaml</code></td><td>O cenário de <code>scenario_base.yaml</code> com as quatro camadas do USASAT-NGSO-8 e quatro enlaces GSO em três localidades, já com <code>gso_links</code> preenchido. 10<sup>6</sup> passos.</td></tr>
           <tr><td><code>exemplo_multiplos_sistemas.yaml</code></td><td>Dois sistemas NGSO, o segundo fictício, com <code>selection_strategy</code>, <code>minimum_elevation</code> e banda de emissão definidos por sistema. Os comentários mostram a conta da sobreposição de banda.</td></tr>
+          <tr><td><code>exemplo_ancoras.yaml</code></td><td>O mesmo cenário de <code>exemplo_completo.yaml</code>, escrito com âncoras YAML: cada enlace e localidade é definido uma vez em um bloco <code>ancoras</code> (ignorado pelo simulador) e reutilizado com <code>*nome</code> e <code>&lt;&lt;: *nome</code>. A merge key <code>&lt;&lt;</code> é do YAML 1.1; alguns leitores YAML 1.2 estritos não a aceitam.</td></tr>
         </tbody>
       </table></div>
     </section>

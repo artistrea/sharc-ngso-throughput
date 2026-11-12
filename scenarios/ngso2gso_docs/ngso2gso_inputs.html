@@ -200,7 +200,7 @@ td.num { font-family: var(--font-mono); font-size: 0.8125rem; font-variant-numer
 
     <section id="minimal">
       <h2>A minimal runnable file</h2>
-      <div class="prose"><p>One NGSO system with one shell, one victim link at one location. Values come from the example; <code>max_t_s</code> is shortened for a quick test. The same file is shipped as <code>exemplo_minimo.yaml</code>, together with <code>exemplo_completo.yaml</code> and <code>exemplo_multiplos_sistemas.yaml</code>.</p></div>
+      <div class="prose"><p>One NGSO system with one shell, one victim link at one location. Values come from the example; <code>max_t_s</code> is shortened for a quick test. The same file is shipped as <code>exemplo_minimo.yaml</code>, together with <code>exemplo_completo.yaml</code>, <code>exemplo_multiplos_sistemas.yaml</code> and <code>exemplo_ancoras.yaml</code>. The last one is the full example written with YAML anchors (<code>&amp;name</code>, <code>*name</code>, <code>&lt;&lt;: *name</code>) so each link and location is defined once; the merge key <code>&lt;&lt;</code> is YAML 1.1 and some strict YAML 1.2 readers reject it.</p></div>
       <div class="codebox">
         <button class="copy" type="button" id="copy-minimal" data-target="minimal-yaml">Copy</button>
 <pre id="minimal-yaml">ngso2gso:

@@ -88,7 +88,7 @@ class NGSO2GSODocsTest(unittest.TestCase):
 
     def test_docs_exist(self):
         """Sanity check: the docs are where these tests expect them."""
-        self.assertEqual(len(EXAMPLES), 3)
+        self.assertEqual(len(EXAMPLES), 4)
         for name in SCHEMA_FILES:
             self.assertTrue((DOCS_DIR / name).is_file(), name)
 
@@ -139,6 +139,15 @@ class NGSO2GSODocsTest(unittest.TestCase):
         """The pt-BR schema is the English one with translated text."""
         en, pt = (strip_text(load_schema(name)) for name in SCHEMA_FILES)
         self.assertEqual(en, pt)
+
+    def test_anchors_example_matches_full_example(self):
+        """exemplo_ancoras.yaml is exemplo_completo.yaml written with anchors."""
+        anchors, full = (
+            yaml.safe_load((DOCS_DIR / name).read_text())["ngso2gso"]
+            for name in ("exemplo_ancoras.yaml", "exemplo_completo.yaml")
+        )
+        anchors["scenario_name"] = full["scenario_name"]
+        self.assertEqual(anchors, full)
 
     @unittest.skipIf(jsonschema is None, "jsonschema is not installed")
     def test_examples_match_schema(self):
