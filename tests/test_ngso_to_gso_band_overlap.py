@@ -160,9 +160,8 @@ class NGSO2GSOBandOverlapValidationTest(unittest.TestCase):
         )
         path = write_band_overlap(self.case.tmp_dir, par)
         data = json.loads(path.read_text())
-        self.assertEqual(data["band_overlap"], "FRACTION")
         self.assertEqual(
-            data["links"][LINK_FULL_NAME]["NGSO"],
+            data[LINK_FULL_NAME]["NGSO"],
             {"fraction": 0.0, "scale_dB": None},
         )
 

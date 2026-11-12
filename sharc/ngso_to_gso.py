@@ -831,25 +831,21 @@ def write_band_overlap(directory: Path, par: ParametersNGSO2GSO) -> Path:
     """
     Save the interference scale factor applied per (GSO link, NGSO
     system) next to the results, so it is recorded with them.
+    Only meaningful with band_overlap: FRACTION.
     """
-    fractions = par.band_overlap_fractions()
-    with np.errstate(divide="ignore"):
-        data = {
-            "band_overlap": par.band_overlap,
-            "links": {
-                link: {
-                    sys_label: {
-                        "fraction": frac,
-                        # JSON has no -inf; null means no overlap
-                        "scale_dB": (
-                            float(10 * np.log10(frac)) if frac > 0 else None
-                        ),
-                    }
-                    for sys_label, frac in per_sys.items()
-                }
-                for link, per_sys in fractions.items()
-            },
+    data = {
+        link: {
+            sys_label: {
+                "fraction": frac,
+                # JSON has no -inf; null means no overlap
+                "scale_dB": (
+                    float(10 * np.log10(frac)) if frac > 0 else None
+                ),
+            }
+            for sys_label, frac in per_sys.items()
         }
+        for link, per_sys in par.band_overlap_fractions().items()
+    }
     path = Path(directory) / "band_overlap.json"
     path.write_text(json.dumps(data, indent=4))
     return path
@@ -878,7 +874,8 @@ def main():
     results_writer, drops_ran = create_results_writer(param_file, par)
 
     print(f"Results will be saved on {results_writer.directory}")
-    write_band_overlap(results_writer.directory, par)
+    if par.band_overlap == "FRACTION":
+        write_band_overlap(results_writer.directory, par)
 
     try:
         run_simulation(
