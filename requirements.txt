@@ -43,7 +43,6 @@ jupyter_core==5.7.2
 kaleido==0.2.1
 kiwisolver==1.4.5
 line_profiler==5.0.0
-logging==0.4.9.6
 lxml==5.2.1
 matplotlib==3.11.0
 matplotlib-inline==0.1.7
