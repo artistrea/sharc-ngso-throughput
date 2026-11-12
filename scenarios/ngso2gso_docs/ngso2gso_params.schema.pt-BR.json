@@ -1,0 +1,256 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sharc.local/schemas/ngso2gso_params.schema.pt-BR.json",
+  "$comment": "Estrutura: ngso2gso -> ngso_systems[] (-> tx_model, orbits[]) e gso_links[] (-> earth_station). Significado e unidade de cada campo estão em 'description'. As entradas '$comment' listam regras que o JSON Schema não consegue expressar; o simulador as verifica ao carregar o arquivo. Arquivos de exemplo: exemplo_minimo.yaml, exemplo_completo.yaml, exemplo_multiplos_sistemas.yaml, exemplo_ancoras.yaml (igual ao exemplo_completo.yaml, escrito com âncoras YAML e merge keys).",
+  "title": "Arquivo de parâmetros NGSO-para-GSO do SHARC",
+  "description": "Entrada de sharc/ngso_to_gso.py (python sharc/ngso_to_gso.py -p <arquivo>.yaml). O simulador lê apenas a seção 'ngso2gso'; outras chaves de nível superior (por exemplo 'gso_links_helpers', usada para âncoras YAML) são ignoradas. Espelha sharc/parameters/parameters_ngso_to_gso.py.",
+  "type": "object",
+  "required": ["ngso2gso"],
+  "properties": {
+    "ngso2gso": { "$ref": "#/$defs/ngso2gso" }
+  },
+  "additionalProperties": true,
+
+  "$defs": {
+    "selection_strategy": {
+      "type": "string",
+      "enum": ["RAND", "MAX_ELEV", "WC"],
+      "description": "Como cada sistema NGSO escolhe seus n_co_channel satélites entre os elegíveis (elevação > minimum_elevation e ângulo fora do eixo em relação ao GSO > gso_protection_avoidance_angle). RAND: aleatoriamente, com distribuição uniforme. MAX_ELEV: os de maior elevação. WC (pior caso): os de menor ângulo fora do eixo em relação ao apontamento da estação terrena para o GSO."
+    },
+
+    "ngso2gso": {
+      "$comment": "Verificado apenas ao carregar: max_t_s > min_t_s; ngso_systems[].label único; par (gso_links[].label, gso_links[].earth_station.label) único. selection_strategy e minimum_elevation de cada sistema herdam os valores daqui quando omitidos.",
+      "type": "object",
+      "description": "Parâmetros de nível superior da simulação (ParametersNGSO2GSO). Chaves desconhecidas são rejeitadas. A chave antiga 'ngso' (sistema único) é rejeitada; migre com scenarios/migrate_to_ngso_systems.py.",
+      "required": ["scenario_name", "minimum_elevation", "ngso_systems", "gso_links"],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "number",
+          "default": 1,
+          "description": "Versão do formato. Use 2 (ou mais) para poder definir selection_strategy. Se < 2, selection_strategy NÃO pode ser definido e RAND é usado."
+        },
+        "scenario_name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nome do cenário. Define o diretório de resultados (scenarios/results/<timestamp>/<scenario_name>) e é a chave para retomar execuções interrompidas."
+        },
+        "selection_strategy": {
+          "$ref": "#/$defs/selection_strategy",
+          "description": "Estratégia de seleção padrão para todo sistema NGSO que não a sobrescreva. Obrigatória com version >= 2; proibida com version < 2."
+        },
+        "seed": {
+          "type": "integer",
+          "default": 1251,
+          "description": "Semente aleatória. Os geradores de cada passo de tempo são derivados dela."
+        },
+        "delta_t_s": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 1.0,
+          "description": "Passo de tempo [s]."
+        },
+        "min_t_s": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Instante inicial da simulação [s]."
+        },
+        "max_t_s": {
+          "type": "number",
+          "default": 1000.0,
+          "description": "Instante final da simulação [s]. Deve ser maior que min_t_s. Número de passos = (max_t_s - min_t_s) / delta_t_s."
+        },
+        "batch_size": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 100,
+          "description": "Número de passos calculados por bloco antes de gravar os resultados em disco."
+        },
+        "ref_bandwidth_Hz": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 1000000,
+          "description": "Banda de referência [Hz] para a potência de ruído e para a PFD do NGSO (pfd_at_ref_bandwidth_dBW_m2)."
+        },
+        "minimum_elevation": {
+          "type": "number",
+          "description": "Elevação mínima padrão [graus], vista da estação terrena GSO, para um satélite NGSO ser considerado visível. A comparação é estrita (maior que). Pode ser sobrescrita por sistema."
+        },
+        "ngso_systems": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/ngso_system" },
+          "description": "Um item por sistema NGSO (operador). Cada um seleciona seus próprios satélites co-canal; a interferência de todos é somada em potência na estação terrena GSO. Os labels devem ser únicos."
+        },
+        "gso_links": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/gso_link" },
+          "description": "Enlaces GSO vítimas. Os resultados são calculados para cada um de forma independente. O par (label, earth_station.label) deve ser único. Obs.: scenarios/scenario_base.yaml deixa este campo null e scenario_generator.py o preenche; um arquivo executado diretamente precisa de uma lista não vazia."
+        }
+      },
+      "allOf": [
+        {
+          "$comment": "version >= 2 exige selection_strategy; version ausente ou < 2 a proíbe (o simulador falha com 'ValueError: AOPASA').",
+          "if": {
+            "properties": { "version": { "type": "number", "minimum": 2 } },
+            "required": ["version"]
+          },
+          "then": { "required": ["selection_strategy"] },
+          "else": { "not": { "required": ["selection_strategy"] } }
+        }
+      ]
+    },
+
+    "ngso_system": {
+      "$comment": "center_freq_GHz e bandwidth_MHz: ambos ou nenhum (dependentRequired). Fator de escala da interferência = sobreposição de [fc-bw/2, fc+bw/2] com a banda da vítima / banda da vítima.",
+      "type": "object",
+      "description": "Um sistema NGSO (ParametersNGSO). Todas as suas órbitas compartilham o mesmo n_co_channel.",
+      "required": ["label", "n_co_channel", "orbits"],
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "not": { "pattern": "---" },
+          "description": "Nome do sistema. Usado nas colunas de resultado por sistema (i---<label>, epfd---<label>), por isso não pode conter '---'. Único entre os ngso_systems."
+        },
+        "n_co_channel": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Nco: número de satélites co-frequência deste sistema transmitindo para a região da estação terrena a cada passo. Se houver menos elegíveis, todos os elegíveis são usados."
+        },
+        "gso_protection_avoidance_angle": {
+          "type": ["number", "null"],
+          "description": "Ângulo de evitação do arco GSO [graus]. Satélites com ângulo fora do eixo (em relação ao apontamento da estação terrena para o GSO) menor ou igual a este valor são excluídos. null ou ausente desativa a evitação."
+        },
+        "selection_strategy": {
+          "$ref": "#/$defs/selection_strategy",
+          "description": "Sobrescreve opcionalmente ngso2gso.selection_strategy para este sistema."
+        },
+        "minimum_elevation": {
+          "type": "number",
+          "description": "Sobrescreve opcionalmente ngso2gso.minimum_elevation [graus] para este sistema."
+        },
+        "center_freq_GHz": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Frequência central de emissão [GHz], opcional. Definir junto com bandwidth_MHz. A interferência em cada enlace GSO é multiplicada pela fração da banda de recepção da vítima coberta por [fc - bw/2, fc + bw/2]. Se omitido, assume-se sobreposição total (o simulador emite um aviso)."
+        },
+        "bandwidth_MHz": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Largura de banda de emissão [MHz], opcional. Definir junto com center_freq_GHz."
+        },
+        "tx_model": { "$ref": "#/$defs/tx_model" },
+        "orbits": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/orbit" },
+          "description": "Camadas orbitais deste sistema (por exemplo, uma por submissão ou subconstelação)."
+        }
+      },
+      "dependentRequired": {
+        "center_freq_GHz": ["bandwidth_MHz"],
+        "bandwidth_MHz": ["center_freq_GHz"]
+      }
+    },
+
+    "tx_model": {
+      "type": "object",
+      "description": "Modelo de transmissão do NGSO (ParametersNGSOTxModel). Se omitido, usa CONSTANT_PFD_AT_GND com -113 dBW/m^2.",
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "type": "string",
+          "enum": ["CONSTANT_PFD_AT_GND"],
+          "default": "CONSTANT_PFD_AT_GND",
+          "description": "Único modelo implementado: todo satélite selecionado produz a mesma PFD na estação terrena."
+        },
+        "pfd_at_ref_bandwidth_dBW_m2": {
+          "type": "number",
+          "default": -113.0,
+          "description": "PFD no solo [dBW/m^2 em ref_bandwidth_Hz]."
+        }
+      }
+    },
+
+    "orbit": {
+      "$comment": "Verificado apenas ao carregar: apogee_alt_km >= perigee_alt_km. Os seis campos de forma não têm valor padrão: omitir qualquer um deles gera erro ao carregar, listando todos os campos ausentes.",
+      "type": "object",
+      "description": "Uma camada orbital do tipo Walker (ParametersOrbit). n_planes, sats_per_plane, inclination_deg, perigee_alt_km, apogee_alt_km e phasing_deg são obrigatórios; long_asc_deg, omega_deg e initial_mean_anomaly valem 0 por padrão. apogee_alt_km deve ser >= perigee_alt_km.",
+      "required": ["n_planes", "sats_per_plane", "inclination_deg", "perigee_alt_km", "apogee_alt_km", "phasing_deg"],
+      "additionalProperties": false,
+      "properties": {
+        "n_planes": { "type": "integer", "minimum": 1, "description": "Número de planos orbitais." },
+        "sats_per_plane": { "type": "integer", "minimum": 1, "description": "Satélites por plano." },
+        "inclination_deg": { "type": "number", "minimum": 0, "maximum": 180, "description": "Inclinação orbital [graus]." },
+        "perigee_alt_km": { "type": "number", "minimum": 0, "description": "Altitude do perigeu [km]." },
+        "apogee_alt_km": { "type": "number", "minimum": 0, "description": "Altitude do apogeu [km]. Deve ser >= perigee_alt_km (iguais para órbita circular)." },
+        "phasing_deg": { "type": "number", "minimum": 0, "maximum": 360, "description": "Defasagem entre satélites de planos adjacentes [graus]. Irrelevante com n_planes = 1." },
+        "long_asc_deg": { "type": "number", "default": 0.0, "description": "Longitude do nó ascendente do primeiro plano [graus]." },
+        "omega_deg": { "type": "number", "default": 0.0, "description": "Argumento do perigeu [graus]." },
+        "initial_mean_anomaly": { "type": "number", "default": 0.0, "description": "Anomalia média inicial [graus]." },
+        "model_time_as_random_variable": {
+          "type": "boolean",
+          "default": false,
+          "description": "Não usado por ngso_to_gso.py (o tempo é sempre avançado passo a passo). Deixe false."
+        },
+        "t_min": { "type": "number", "default": 0.0, "description": "Só permitido com model_time_as_random_variable = true. Não usado por ngso_to_gso.py." },
+        "t_max": { "type": ["number", "null"], "default": null, "description": "Só permitido com model_time_as_random_variable = true. Não usado por ngso_to_gso.py." }
+      }
+    },
+
+    "gso_link": {
+      "$comment": "Os resultados são nomeados '<label>---<earth_station.label>'; esse par deve ser único (verificado ao carregar). Portadora C [dBW/MHz] = eirp_dBW_per_carrier - 10*log10(bandwidth_MHz) + peak_rx_antenna_gain - added_loss - perda de espaço livre - atenuação por chuva.",
+      "type": "object",
+      "description": "Um enlace de descida GSO vítima (ParametersGSO): satélite, orçamento de enlace e estação terrena receptora.",
+      "required": [
+        "label",
+        "orbital_slot_deg",
+        "center_freq_GHz",
+        "bandwidth_MHz",
+        "eirp_dBW_per_carrier",
+        "peak_rx_antenna_gain",
+        "rx_antenna_size_m",
+        "g_over_t_dB_per_K",
+        "station_type",
+        "earth_station"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string", "minLength": 1, "description": "Nome do enlace (ex.: 'Jupiter 97W GW')." },
+        "orbital_slot_deg": { "type": "number", "minimum": -180, "maximum": 360, "description": "Longitude do satélite GSO [graus], leste positivo (ex.: -97.1 para 97,1 W)." },
+        "center_freq_GHz": { "type": "number", "exclusiveMinimum": 0, "description": "Frequência central da portadora [GHz]. Define o comprimento de onda (diagrama de antena, propagação) e a banda da vítima para o cálculo de sobreposição." },
+        "bandwidth_MHz": { "type": "number", "exclusiveMinimum": 0, "description": "Largura de banda da portadora (banda de recepção da vítima) [MHz]." },
+        "downlink_freq_MHz": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Limites (inferior, superior) da banda de descida [MHz], apenas informativos; não entram no cálculo. Em YAML pode ser lista simples [inf, sup] ou !!python/tuple [inf, sup]."
+        },
+        "eirp_dBW_per_carrier": { "type": "number", "description": "EIRP do satélite GSO na portadora inteira [dBW]." },
+        "peak_rx_antenna_gain": { "type": "number", "description": "Ganho máximo da antena receptora da estação terrena [dBi]." },
+        "rx_antenna_size_m": { "type": "number", "exclusiveMinimum": 0, "description": "Diâmetro da antena da estação terrena [m]. Define o diagrama de ganho fora do eixo (D/lambda)." },
+        "g_over_t_dB_per_K": { "type": "number", "description": "G/T da estação terrena [dB/K]. Usado para obter a temperatura de ruído." },
+        "station_type": { "type": "string", "enum": ["GW", "CT"], "description": "GW = gateway, CT = terminal de usuário. Apenas rótulo; não altera o cálculo." },
+        "added_loss": { "type": "number", "default": 0.0, "description": "Perda adicional [dB] subtraída da portadora desejada (C). scenario_generator.py usa 3 dB." },
+        "earth_station": { "$ref": "#/$defs/earth_station" }
+      }
+    },
+
+    "earth_station": {
+      "type": "object",
+      "description": "Localização da estação terrena receptora GSO (ParametersGSOEarthStation).",
+      "required": ["label", "lat_deg", "lon_deg"],
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string", "minLength": 1, "description": "Nome da localidade (ex.: 'Miami')." },
+        "lat_deg": { "type": "number", "minimum": -90, "maximum": 90, "description": "Latitude [graus], norte positivo." },
+        "lon_deg": { "type": "number", "minimum": -180, "maximum": 180, "description": "Longitude [graus], leste positivo." },
+        "alt_m": { "type": ["number", "null"], "default": null, "description": "Altitude [m]. Se null ou ausente, obtida dos dados topográficos ITU-R (itur.topographic_altitude)." }
+      }
+    }
+  }
+}

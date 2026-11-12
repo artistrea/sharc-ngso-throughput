@@ -1,0 +1,146 @@
+# Exemplo com âncoras YAML para sharc/ngso_to_gso.py
+# Execução: python sharc/ngso_to_gso.py -p scenarios/ngso2gso_docs/exemplo_ancoras.yaml
+#
+# Mesmo cenário de exemplo_completo.yaml, escrito de forma menos verbosa:
+#   &nome      define uma âncora
+#   *nome      reutiliza o valor ancorado
+#   <<: *nome  mescla (merge key) as chaves de um mapa ancorado; chaves
+#              escritas explicitamente ao lado do <<: têm prioridade.
+#
+# O simulador só lê a seção 'ngso2gso'; o bloco 'ancoras' abaixo é ignorado
+# por ele e serve apenas para guardar as definições reutilizáveis.
+#
+# Obs.: a merge key '<<' é um recurso do YAML 1.1. PyYAML (usado pelo SHARC)
+# suporta; alguns leitores YAML 1.2 estritos não.
+
+ancoras:
+  # --- Localidades das estações terrenas -----------------------------------
+  locais:
+    las_vegas: &las_vegas
+      label: Las Vegas
+      lat_deg: 36.19
+      lon_deg: -115.18
+    kansas: &kansas
+      label: Kansas
+      lat_deg: 39.07
+      lon_deg: -94.6
+    miami: &miami
+      label: Miami
+      lat_deg: 25.77
+      lon_deg: -80.19
+
+  # --- Campos comuns a todos os enlaces GSO ---------------------------------
+  enlace_padrao: &enlace_padrao
+    added_loss: 3.0
+
+  # --- Enlaces GSO (sem estação terrena; ela é escolhida em gso_links) -----
+  enlaces:
+    jupiter_97w_gw: &jupiter_97w_gw
+      <<: *enlace_padrao
+      label: Jupiter 97W GW
+      orbital_slot_deg: -97.1
+      center_freq_GHz: 20.075
+      downlink_freq_MHz: [19700, 20200]
+      bandwidth_MHz: 250.0
+      eirp_dBW_per_carrier: 71.0
+      peak_rx_antenna_gain: 62.0
+      rx_antenna_size_m: 6.3
+      g_over_t_dB_per_K: 38.0
+      station_type: GW
+    jupiter_97w_ct: &jupiter_97w_ct
+      <<: *jupiter_97w_gw     # mesmo satélite; sobrescreve só o que muda
+      label: Jupiter 97W CT
+      center_freq_GHz: 18.675
+      downlink_freq_MHz: [18300, 20200]
+      bandwidth_MHz: 500.0
+      peak_rx_antenna_gain: 43.7
+      rx_antenna_size_m: 0.9
+      g_over_t_dB_per_K: 19.7
+      station_type: CT
+    galaxy_30_gw: &galaxy_30_gw
+      <<: *enlace_padrao
+      label: Galaxy 30 GW
+      orbital_slot_deg: -125.0
+      center_freq_GHz: 19.95
+      downlink_freq_MHz: [17800, 20200]
+      bandwidth_MHz: 140.0
+      eirp_dBW_per_carrier: 64.0
+      peak_rx_antenna_gain: 62.0
+      rx_antenna_size_m: 9.4
+      g_over_t_dB_per_K: 38.0
+      station_type: GW
+    ses_17_ct: &ses_17_ct
+      <<: *enlace_padrao
+      label: SES-17 CT
+      orbital_slot_deg: -67.0
+      center_freq_GHz: 18.0
+      downlink_freq_MHz: [17800, 20200]
+      bandwidth_MHz: 72.0
+      eirp_dBW_per_carrier: 61.4
+      peak_rx_antenna_gain: 42.7
+      rx_antenna_size_m: 0.9
+      g_over_t_dB_per_K: 18.7
+      station_type: CT
+
+  # --- Camada orbital com um satélite por plano (base das camadas 8B e 8C) --
+  camada_1_sat_por_plano: &camada_1_sat_por_plano
+    sats_per_plane: 1
+
+
+ngso2gso:
+  version: 2
+  scenario_name: cenario3_ancoras
+  seed: 125
+  delta_t_s: 1.0
+  min_t_s: 0.0
+  max_t_s: 1000000.0         # 10^6 passos; reduza para testes
+  batch_size: 500
+  ref_bandwidth_Hz: 1000000
+  minimum_elevation: 35.0
+  selection_strategy: RAND
+
+  ngso_systems:
+    - label: USASAT-NGSO-8
+      gso_protection_avoidance_angle: 2.0
+      n_co_channel: 8
+      tx_model:
+        model: CONSTANT_PFD_AT_GND
+        pfd_at_ref_bandwidth_dBW_m2: -115.0
+      orbits:
+        # Órbitas circulares: a âncora no perigeu é reutilizada no apogeu.
+        - n_planes: 289          # USASAT-NGSO-8A
+          sats_per_plane: 4
+          inclination_deg: 51.9
+          perigee_alt_km: &alt_630 630.0
+          apogee_alt_km: *alt_630
+          phasing_deg: 71.09
+        - n_planes: 1            # USASAT-NGSO-8A (ITU: 33 graus; FCC: 30)
+          sats_per_plane: 2
+          inclination_deg: 30.0
+          perigee_alt_km: &alt_590 590.0
+          apogee_alt_km: *alt_590
+          phasing_deg: 0.0
+        - <<: *camada_1_sat_por_plano   # USASAT-NGSO-8B
+          n_planes: 1292
+          inclination_deg: 42.0
+          perigee_alt_km: &alt_610 610.0
+          apogee_alt_km: *alt_610
+          phasing_deg: 273.933
+        - <<: *camada_1_sat_por_plano   # USASAT-NGSO-8C
+          n_planes: 782
+          inclination_deg: 33.0
+          perigee_alt_km: *alt_590
+          apogee_alt_km: *alt_590
+          phasing_deg: 16.615
+
+  # Cada item combina um enlace com uma localidade.
+  # Para avaliar o mesmo enlace em outra cidade, basta trocar earth_station.
+  gso_links:
+    - <<: *jupiter_97w_gw
+      earth_station: *miami
+    - <<: *jupiter_97w_ct
+      earth_station: *kansas
+    - <<: *galaxy_30_gw
+      earth_station: *las_vegas
+    - <<: *ses_17_ct
+      earth_station: *miami

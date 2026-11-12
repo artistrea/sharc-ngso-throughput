@@ -1,0 +1,94 @@
+# Exemplo com dois sistemas NGSO para sharc/ngso_to_gso.py
+# Execução: python sharc/ngso_to_gso.py -p scenarios/ngso2gso_docs/exemplo_multiplos_sistemas.yaml
+#
+# Mostra os campos opcionais por sistema: selection_strategy e
+# minimum_elevation sobrescritos, e banda de emissão (center_freq_GHz +
+# bandwidth_MHz) para ponderar a interferência pela sobreposição de banda.
+# A interferência dos dois sistemas é somada em potência na estação terrena;
+# os resultados ganham colunas i---<label> e epfd---<label> por sistema.
+#
+# ATENÇÃO: o sistema EXEMPLO-NGSO-B é fictício, com valores ilustrativos.
+
+ngso2gso:
+  version: 2
+  scenario_name: dois_sistemas
+  seed: 125
+  delta_t_s: 1.0
+  min_t_s: 0.0
+  max_t_s: 1000.0
+  batch_size: 500
+  ref_bandwidth_Hz: 1000000
+  minimum_elevation: 35.0    # padrão para sistemas que não sobrescrevem
+  selection_strategy: RAND   # padrão para sistemas que não sobrescrevem
+
+  ngso_systems:
+    # Sistema A: herda selection_strategy (RAND) e minimum_elevation (35).
+    - label: USASAT-NGSO-8
+      n_co_channel: 8
+      gso_protection_avoidance_angle: 2.0
+      tx_model:
+        model: CONSTANT_PFD_AT_GND
+        pfd_at_ref_bandwidth_dBW_m2: -115.0
+      orbits:
+        - n_planes: 289
+          sats_per_plane: 4
+          inclination_deg: 51.9
+          perigee_alt_km: 630.0
+          apogee_alt_km: 630.0
+          phasing_deg: 71.09
+
+    # Sistema B (fictício): sobrescreve estratégia e elevação mínima e
+    # declara banda de emissão 19,45-19,95 GHz. Contra o enlace Jupiter 97W GW
+    # (19,95-20,20 GHz) a sobreposição é 0, logo B não contribui nele;
+    # contra o Galaxy 30 GW (19,88-20,02 GHz) a sobreposição é 70/140 = 0,5,
+    # o que reduz a interferência de B em 3 dB.
+    - label: EXEMPLO-NGSO-B
+      n_co_channel: 4
+      gso_protection_avoidance_angle: 3.0
+      selection_strategy: WC         # pior caso: menor ângulo fora do eixo
+      minimum_elevation: 25.0
+      center_freq_GHz: 19.7          # definir junto com bandwidth_MHz
+      bandwidth_MHz: 500.0
+      tx_model:
+        model: CONSTANT_PFD_AT_GND
+        pfd_at_ref_bandwidth_dBW_m2: -118.0
+      orbits:
+        - n_planes: 72
+          sats_per_plane: 22
+          inclination_deg: 53.0
+          perigee_alt_km: 550.0
+          apogee_alt_km: 550.0
+          phasing_deg: 5.0
+
+  gso_links:
+    - label: Jupiter 97W GW
+      orbital_slot_deg: -97.1
+      center_freq_GHz: 20.075
+      downlink_freq_MHz: [19700, 20200]
+      bandwidth_MHz: 250.0
+      eirp_dBW_per_carrier: 71.0
+      peak_rx_antenna_gain: 62.0
+      rx_antenna_size_m: 6.3
+      g_over_t_dB_per_K: 38.0
+      station_type: GW
+      added_loss: 3.0
+      earth_station:
+        label: Miami
+        lat_deg: 25.77
+        lon_deg: -80.19
+
+    - label: Galaxy 30 GW
+      orbital_slot_deg: -125.0
+      center_freq_GHz: 19.95
+      downlink_freq_MHz: [17800, 20200]
+      bandwidth_MHz: 140.0
+      eirp_dBW_per_carrier: 64.0
+      peak_rx_antenna_gain: 62.0
+      rx_antenna_size_m: 9.4
+      g_over_t_dB_per_K: 38.0
+      station_type: GW
+      added_loss: 3.0
+      earth_station:
+        label: Las Vegas
+        lat_deg: 36.19
+        lon_deg: -115.18
