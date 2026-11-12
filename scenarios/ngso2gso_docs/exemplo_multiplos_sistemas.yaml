@@ -4,6 +4,9 @@
 # Mostra os campos opcionais por sistema: selection_strategy e
 # minimum_elevation sobrescritos, e banda de emissão (center_freq_GHz +
 # bandwidth_MHz) para ponderar a interferência pela sobreposição de banda.
+# A ponderação só é aplicada com band_overlap: FRACTION; nesse modo todo
+# sistema precisa declarar sua banda. O fator aplicado a cada par
+# (enlace, sistema) é salvo em band_overlap.json junto dos resultados.
 # A interferência dos dois sistemas é somada em potência na estação terrena;
 # os resultados ganham colunas i---<label> e epfd---<label> por sistema.
 #
@@ -20,12 +23,19 @@ ngso2gso:
   ref_bandwidth_Hz: 1000000
   minimum_elevation: 35.0    # padrão para sistemas que não sobrescrevem
   selection_strategy: RAND   # padrão para sistemas que não sobrescrevem
+  band_overlap: FRACTION     # padrão FULL: cocanal, sem ponderação
+  # B não se sobrepõe ao Jupiter 97W GW (ver abaixo). Sem isto, a validação
+  # recusa o arquivo, pois sobreposição zero costuma ser erro de digitação.
+  allow_zero_band_overlap: true
 
   ngso_systems:
     # Sistema A: herda selection_strategy (RAND) e minimum_elevation (35).
+    # Banda 17,8-20,2 GHz: cobre os dois enlaces por inteiro (fator 1, 0 dB).
     - label: USASAT-NGSO-8
       n_co_channel: 8
       gso_protection_avoidance_angle: 2.0
+      center_freq_GHz: 19.0
+      bandwidth_MHz: 2400.0
       tx_model:
         model: CONSTANT_PFD_AT_GND
         pfd_at_ref_bandwidth_dBW_m2: -115.0

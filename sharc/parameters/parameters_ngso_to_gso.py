@@ -8,6 +8,10 @@ from sharc.parameters.parameters_orbit import ParametersOrbit
 
 STR_SEPARATOR = "---"
 SELECTION_STRATEGIES = ("RAND", "MAX_ELEV", "WC")
+# FULL: every NGSO system is co-channel with every GSO link, no scaling.
+# FRACTION: interference is scaled by the fraction of the victim band
+# covered by the system's emission band.
+BAND_OVERLAP_MODES = ("FULL", "FRACTION")
 MIGRATION_SCRIPT = "scenarios/migrate_to_ngso_systems.py"
 
 
@@ -182,18 +186,21 @@ class ParametersNGSO(ParametersBase):
     selection_strategy: str = None
     minimum_elevation: float = None
 
-    # Optional emission band. If either is None, the system is assumed to
-    # fully overlap every GSO link's receive band.
+    # Emission band. Only used, and then required, when
+    # ngso2gso.band_overlap is "FRACTION".
     center_freq_GHz: float = None
     bandwidth_MHz: float = None
 
-    def band_overlap(self, gso: "ParametersGSO") -> float:
+    def band_overlap_fraction(self, gso: "ParametersGSO") -> float:
         """
         Fraction of the victim (GSO link) receive bandwidth covered by
-        this system's emission band. 1.0 if the system band is not set.
+        this system's emission band, between 0 and 1.
         """
         if self.center_freq_GHz is None or self.bandwidth_MHz is None:
-            return 1.0
+            raise ValueError(
+                f"NGSO system '{self.label}' has no emission band "
+                "(center_freq_GHz, bandwidth_MHz)"
+            )
         fc = self.center_freq_GHz * 1e3
         lo, hi = fc - self.bandwidth_MHz / 2, fc + self.bandwidth_MHz / 2
         v_lo, v_hi = gso.get_band_MHz()
@@ -224,13 +231,11 @@ class ParametersNGSO(ParametersBase):
             raise ValueError(
                 f"{ctx}: set both center_freq_GHz and bandwidth_MHz, or neither"
             )
-        if self.center_freq_GHz is None:
-            warn(
-                f"{ctx} ('{self.label}') has no center_freq_GHz/bandwidth_MHz;"
-                " assuming full band overlap with every GSO link."
-            )
-        elif self.bandwidth_MHz <= 0:
-            raise ValueError(f"{ctx}.bandwidth_MHz must be positive.")
+        if self.center_freq_GHz is not None:
+            if self.center_freq_GHz <= 0:
+                raise ValueError(f"{ctx}.center_freq_GHz must be positive.")
+            if self.bandwidth_MHz <= 0:
+                raise ValueError(f"{ctx}.bandwidth_MHz must be positive.")
         if not self.orbits:
             raise ValueError(f"{ctx}.orbits must contain at least one orbit.")
         for i, orbit in enumerate(self.orbits):
@@ -268,6 +273,17 @@ class ParametersNGSO2GSO(ParametersBase):
     max_t_s: float = 1000.0         # simulation end [s]
     batch_size: int = 100           # flush results every N steps
     ref_bandwidth_Hz: float = 1e6   # reference bandwidth for noise / PFD
+
+    # How NGSO interference is scaled by frequency overlap. See
+    # BAND_OVERLAP_MODES. "FRACTION" must be chosen explicitly so that the
+    # scaling is never applied without the user asking for it.
+    band_overlap: (
+        typing.Literal["FULL"] | typing.Literal["FRACTION"]
+    ) = "FULL"
+    # With "FRACTION", an NGSO system whose band does not overlap a GSO
+    # link contributes no interference to it. That is rejected unless
+    # this is set, since it is usually a typo in a frequency.
+    allow_zero_band_overlap: bool = False
 
     minimum_elevation: float = None
 
@@ -340,7 +356,82 @@ class ParametersNGSO2GSO(ParametersBase):
                 )
             sys_labels.add(sys.label)
 
+        self._validate_band_overlap(ctx)
+
         super().validate(ctx)
+
+    def _validate_band_overlap(self, ctx: str):
+        if self.band_overlap not in BAND_OVERLAP_MODES:
+            raise ValueError(
+                f"{ctx}.band_overlap is '{self.band_overlap}', "
+                f"must be one of {BAND_OVERLAP_MODES}"
+            )
+
+        if self.band_overlap == "FULL":
+            with_band = [
+                sys.label for sys in self.ngso_systems
+                if sys.center_freq_GHz is not None
+            ]
+            if with_band:
+                raise ValueError(
+                    f"NGSO systems {with_band} set center_freq_GHz/"
+                    f"bandwidth_MHz, but {ctx}.band_overlap is 'FULL', so "
+                    "those values would be ignored. Either remove them, or "
+                    f"set {ctx}.band_overlap: FRACTION to scale interference "
+                    "by the fraction of each GSO link's band they cover."
+                )
+            if self.allow_zero_band_overlap:
+                raise ValueError(
+                    f"{ctx}.allow_zero_band_overlap only applies when "
+                    f"{ctx}.band_overlap is 'FRACTION'."
+                )
+            return
+
+        without_band = [
+            sys.label for sys in self.ngso_systems
+            if sys.center_freq_GHz is None
+        ]
+        if without_band:
+            raise ValueError(
+                f"{ctx}.band_overlap is 'FRACTION', so every NGSO system "
+                "must set center_freq_GHz and bandwidth_MHz. Missing in: "
+                f"{without_band}"
+            )
+
+        no_overlap = [
+            f"{sys_label} -> {link_label}"
+            for link_label, per_sys in self.band_overlap_fractions().items()
+            for sys_label, frac in per_sys.items()
+            if frac == 0.0
+        ]
+        if no_overlap and not self.allow_zero_band_overlap:
+            raise ValueError(
+                "These NGSO systems do not overlap these GSO links in "
+                f"frequency, so they would add no interference: {no_overlap}. "
+                "Check the frequencies, or set "
+                f"{ctx}.allow_zero_band_overlap: true if this is intended."
+            )
+        if no_overlap:
+            warn(
+                "NGSO systems with no frequency overlap (no interference "
+                f"added): {no_overlap}"
+            )
+
+    def band_overlap_fractions(self) -> dict[str, dict[str, float]]:
+        """
+        Interference scale factor (linear, 0 to 1) per GSO link full name
+        and NGSO system label. All 1.0 when band_overlap is "FULL".
+        """
+        return {
+            gso.full_name: {
+                sys.label: (
+                    1.0 if self.band_overlap == "FULL"
+                    else sys.band_overlap_fraction(gso)
+                )
+                for sys in self.ngso_systems
+            }
+            for gso in self.gso_links
+        }
 
     def load_parameters_from_file(self, config_file, quiet=True):
         # This override only exists to give a helpful error for param files
